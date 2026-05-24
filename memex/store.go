@@ -10,11 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
+
+const defaultBusyTimeout = 5 * time.Second
 
 const schema = `
 CREATE TABLE IF NOT EXISTS memories (
@@ -61,8 +64,9 @@ type Memory struct {
 
 // Store persists agent memories in a local SQLite database with FTS5 search.
 type Store struct {
-	db   *sql.DB
-	path string
+	db      *sql.DB
+	path    string
+	writeMu sync.Mutex
 }
 
 // DefaultDir returns the default memex data directory (~/.memex).
@@ -91,10 +95,13 @@ func Open(dir string) (*Store, error) {
 		return nil, fmt.Errorf("create memex dir: %w", err)
 	}
 	path := filepath.Join(dir, "memex.db")
-	db, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)")
+	dsn := fmt.Sprintf("%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(%d)",
+		path, defaultBusyTimeout.Milliseconds())
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+	db.SetMaxOpenConns(1)
 	if _, err := db.Exec(schema); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate schema: %w", err)
@@ -112,7 +119,12 @@ func (s *Store) Path() string {
 
 // Close closes the underlying database.
 func (s *Store) Close() error {
-	if s == nil || s.db == nil {
+	if s == nil {
+		return nil
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if s.db == nil {
 		return nil
 	}
 	err := s.db.Close()
@@ -122,7 +134,7 @@ func (s *Store) Close() error {
 
 // Remember stores a new memory and returns it with an assigned ID.
 func (s *Store) Remember(_ context.Context, content string, tags []string, memoryType string) (*Memory, error) {
-	if s == nil || s.db == nil {
+	if s == nil {
 		return nil, errors.New("store is closed")
 	}
 	content = strings.TrimSpace(content)
@@ -144,6 +156,12 @@ func (s *Store) Remember(_ context.Context, content string, tags []string, memor
 	tagsJSON, err := json.Marshal(mem.Tags)
 	if err != nil {
 		return nil, err
+	}
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if s.db == nil {
+		return nil, errors.New("store is closed")
 	}
 	_, err = s.db.Exec(
 		`INSERT INTO memories (id, content, tags, memory_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -219,12 +237,18 @@ func (s *Store) Get(_ context.Context, id string) (*Memory, error) {
 
 // Forget deletes a memory by ID.
 func (s *Store) Forget(_ context.Context, id string) error {
-	if s == nil || s.db == nil {
+	if s == nil {
 		return errors.New("store is closed")
 	}
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return errors.New("id is required")
+	}
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if s.db == nil {
+		return errors.New("store is closed")
 	}
 	res, err := s.db.Exec(`DELETE FROM memories WHERE id = ?`, id)
 	if err != nil {
