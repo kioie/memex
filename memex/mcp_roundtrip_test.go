@@ -32,8 +32,8 @@ func TestMCPRememberRecallForgetRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tools.Tools) != 4 {
-		t.Fatalf("expected 4 tools, got %d", len(tools.Tools))
+	if len(tools.Tools) != 9 {
+		t.Fatalf("expected 9 tools, got %d", len(tools.Tools))
 	}
 
 	rememberRes, err := session.CallTool(ctx, &mcp.CallToolParams{

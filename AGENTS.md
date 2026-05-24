@@ -40,16 +40,22 @@ Handler signature: `func(ctx, *mcp.CallToolRequest, args In) (*mcp.CallToolResul
 
 | Tool | Purpose |
 |------|---------|
-| `remember` | Store a durable fact, preference, or decision |
-| `recall` | Full-text search or list recent memories |
-| `forget` | Delete one memory by ID |
+| `remember` | Store a durable fact (hash dedup per user_id; optional metadata) |
+| `recall` | FTS search / recent list with filters |
+| `list_memories` | Paginated list with filters (no query) |
+| `update_memory` | Revise content by ID |
 | `get_memory` | Fetch one memory by exact ID |
+| `forget` | Delete one memory |
+| `delete_memories` | Batch delete |
+| `delete_all_memories` | Scoped wipe (`confirm=true`) |
+| `memory_history` | ADD/UPDATE/DELETE audit trail |
 
 Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when not to, and sibling tools.
 
 ## Environment
 
 - `MEMEX_DIR` — data directory (default: `~/.memex`, database at `memex.db`)
+- `MEMEX_USER_ID` — default user scope for memories (mem0-style; default `default`)
 - `MEMEX_VERBOSE=1` — log store path to stderr (stdio is reserved for MCP)
 
 ## Code style
