@@ -6,6 +6,7 @@ Inspired by [Vannevar Bush's memex](https://en.wikipedia.org/wiki/Memex): a devi
 
 [![Unit Tests](https://github.com/kioie/memex/actions/workflows/unit.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/unit.yml)
 [![Integration Tests](https://github.com/kioie/memex/actions/workflows/integration.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/integration.yml)
+[![SonarQube](https://github.com/kioie/memex/actions/workflows/sonar.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/sonar.yml)
 [![CodeQL](https://github.com/kioie/memex/actions/workflows/codeql.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/codeql.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/kioie/memex/memex.svg)](https://pkg.go.dev/github.com/kioie/memex/memex)
 

@@ -11,6 +11,7 @@ Guidance for AI coding agents working in this repository.
 - **Test package**: `go test -race -v ./memex`
 - **Test single**: `go test -run TestName ./memex -v`
 - **Coverage**: `make coverage` / `make coverage-check` (≥75% on `memex/`)
+- **Sonar coverage**: `make coverage-sonar` / `make coverage-sonar-check` (≥80% on `memex/`, used by SonarQube CI)
 - **Lint**: `make lint` (requires [golangci-lint](https://golangci-lint.run/))
 - **Vulnerabilities**: `make vulncheck` (requires [govulncheck](https://go.dev/doc/security/vuln/))
 - **Build CLI**: `make build` → `bin/memex`
@@ -70,6 +71,22 @@ Integration (`integration/mcp_stdio_test.go`): real subprocess `memex serve` ove
 | `lint.yml` | PR, push | golangci-lint |
 | `codeql.yml` | PR, push, weekly | Static security analysis |
 | `security.yml` | PR, push, weekly | govulncheck |
+| `sonar.yml` | PR, push | SonarQube analysis, 80% coverage floor, strict quality gate |
+
+## SonarQube setup
+
+1. Import the repo at [SonarCloud](https://sonarcloud.io) (org `kioie`, project key `kioie_memex`).
+2. GitHub **Settings → Secrets and variables → Actions**:
+   - Secret: `SONAR_TOKEN`
+   - Variable: `SONAR_HOST_URL` = `https://sonarcloud.io`
+3. Assign a **strict quality gate** to the project (see CONTRIBUTING.md). CI fails on `FAILED` or `WARN`.
+
+**Stringent CI behavior (`sonar.yml`):**
+
+- Pre-scan coverage floor: **80%** on `memex/` (`make coverage-sonar-check`)
+- Quality gate poll timeout: **600s**
+- **WARN and FAILED** both fail the workflow (only `PASSED` accepted)
+- New code measured against `main` (`sonar.newCode.referenceBranch`)
 
 **Known limits (current implementation):**
 
@@ -81,4 +98,4 @@ Integration (`integration/mcp_stdio_test.go`): real subprocess `memex serve` ove
 
 ## CI expectations
 
-PRs should pass: unit tests, integration tests, lint, coverage check, release build. CodeQL and govulncheck run on PRs and weekly schedules.
+PRs should pass: unit tests, integration tests, lint, coverage check, release build, SonarQube quality gate. CodeQL and govulncheck run on PRs and weekly schedules.
