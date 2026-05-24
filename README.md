@@ -47,10 +47,17 @@ Start a new chat later:
 
 | Tool | Description |
 |------|-------------|
-| `remember` | Store a fact, preference, decision, or note |
-| `recall` | Search memories (FTS5) or list recent entries |
-| `forget` | Delete a memory by ID |
+| `remember` | Store a fact (dedups by user_id + content hash; optional metadata) |
+| `recall` | FTS search or list recent (filters: tags, type, user_id, pagination) |
+| `list_memories` | Filtered list without search query (mem0 `get_memories`) |
+| `update_memory` | Overwrite content by ID |
 | `get_memory` | Fetch one memory by exact ID |
+| `forget` | Delete one memory by ID |
+| `delete_memories` | Batch delete by IDs |
+| `delete_all_memories` | Wipe user scope (requires `confirm=true`) |
+| `memory_history` | Audit trail for a memory |
+
+Set `MEMEX_USER_ID` to scope memories (mem0-style `user_id`, default `default`).
 
 Memories live in `~/.memex/memex.db` (override with `MEMEX_DIR`).
 

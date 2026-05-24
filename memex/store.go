@@ -56,14 +56,25 @@ END;
 
 // Memory is a single stored fact, preference, decision, or note.
 type Memory struct {
-	ID         string    `json:"id"`
-	Content    string    `json:"content"`
-	Tags       []string  `json:"tags,omitempty"`
-	Type       string    `json:"type"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	Score      float64   `json:"score,omitempty"`
-	Highlights string    `json:"highlights,omitempty"`
+	ID         string         `json:"id"`
+	Content    string         `json:"content"`
+	Tags       []string       `json:"tags,omitempty"`
+	Type       string         `json:"type"`
+	UserID     string         `json:"user_id,omitempty"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	Score      float64        `json:"score,omitempty"`
+	Highlights string         `json:"highlights,omitempty"`
+}
+
+// MemoryFilter scopes list/search operations (mem0-style filters, local SQLite).
+type MemoryFilter struct {
+	UserID string
+	Tags   []string
+	Type   string
+	Limit  int
+	Offset int
 }
 
 // Store persists agent memories in a local SQLite database with FTS5 search.
@@ -110,6 +121,10 @@ func Open(dir string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}
+	if err := migrateStore(db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return &Store{db: db, path: path}, nil
 }
 
@@ -137,23 +152,42 @@ func (s *Store) Close() error {
 }
 
 // Remember stores a new memory and returns it with an assigned ID.
-func (s *Store) Remember(_ context.Context, content string, tags []string, memoryType string) (*Memory, error) {
+// Duplicate content for the same user_id returns the existing memory (mem0 hash dedup, storage-only).
+func (s *Store) Remember(_ context.Context, content string, tags []string, memoryType string, opts ...RememberOption) (*Memory, error) {
 	if s == nil {
-		return nil, errors.New("store is closed")
+		return nil, errStoreClosed
 	}
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return nil, errors.New("content is required")
 	}
+	cfg := applyRememberOptions(opts)
+	userID := ResolveUserIDArg(cfg.UserID)
 	if memoryType == "" {
 		memoryType = "note"
 	}
+	hash := contentHash(userID, content)
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if s.db == nil {
+		return nil, errStoreClosed
+	}
+
+	if existing, err := s.getByHashLocked(userID, hash); err != nil {
+		return nil, err
+	} else if existing != nil {
+		return existing, nil
+	}
+
 	now := time.Now().UTC()
 	mem := &Memory{
 		ID:        uuid.NewString(),
 		Content:   content,
 		Tags:      normalizeTags(tags),
 		Type:      memoryType,
+		UserID:    userID,
+		Metadata:  cfg.Metadata,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -161,78 +195,95 @@ func (s *Store) Remember(_ context.Context, content string, tags []string, memor
 	if err != nil {
 		return nil, err
 	}
-
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	if s.db == nil {
-		return nil, errors.New("store is closed")
+	metaJSON, err := encodeMetadata(mem.Metadata)
+	if err != nil {
+		return nil, err
 	}
+
 	_, err = s.db.Exec(
-		`INSERT INTO memories (id, content, tags, memory_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		mem.ID, mem.Content, string(tagsJSON), mem.Type, mem.CreatedAt.Format(time.RFC3339Nano), mem.UpdatedAt.Format(time.RFC3339Nano),
+		`INSERT INTO memories (id, content, tags, memory_type, created_at, updated_at, content_hash, metadata, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		mem.ID, mem.Content, string(tagsJSON), mem.Type, mem.CreatedAt.Format(time.RFC3339Nano), mem.UpdatedAt.Format(time.RFC3339Nano), hash, metaJSON, mem.UserID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert memory: %w", err)
 	}
+	if err := s.recordHistory(mem.ID, userID, historyAdd, "", mem.Content); err != nil {
+		return nil, fmt.Errorf("record history: %w", err)
+	}
 	return mem, nil
 }
 
-// Recall searches memories using FTS5. Empty query lists recent memories.
-func (s *Store) Recall(_ context.Context, query string, limit int) ([]Memory, error) {
+// Recall searches memories using FTS5. Empty query lists recent memories for the scoped user.
+func (s *Store) Recall(ctx context.Context, query string, limit int) ([]Memory, error) {
+	return s.Search(ctx, query, MemoryFilter{Limit: limit})
+}
+
+// Search runs FTS5 recall with mem0-style filters (user_id, tags, type).
+func (s *Store) Search(_ context.Context, query string, filter MemoryFilter) ([]Memory, error) {
 	if s == nil || s.db == nil {
-		return nil, errors.New("store is closed")
+		return nil, errStoreClosed
 	}
+	limit := filter.Limit
 	if limit <= 0 {
 		limit = 10
 	}
+	userID := ResolveUserIDArg(filter.UserID)
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return s.listRecent(limit)
+		return s.listRecentFiltered(limit, filter.Offset, userID, filter)
 	}
 	ftsQuery := buildFTSQuery(query)
-	rows, err := s.db.Query(`
+	sqlText := `
 		SELECT m.id, m.content, m.tags, m.memory_type, m.created_at, m.updated_at, bm25(memories_fts) AS score,
-		       snippet(memories_fts, 0, '[', ']', '…', 12) AS highlights
+		       snippet(memories_fts, 0, '[', ']', '…', 12) AS highlights, m.metadata, m.user_id
 		FROM memories_fts
 		JOIN memories m ON m.rowid = memories_fts.rowid
-		WHERE memories_fts MATCH ?
-		ORDER BY score
-		LIMIT ?`,
-		ftsQuery, limit,
-	)
+		WHERE memories_fts MATCH ? AND m.user_id = ?`
+	args := []any{ftsQuery, userID}
+	sqlText, args = appendFilterClauses(sqlText, args, filter)
+	sqlText += ` ORDER BY score LIMIT ? OFFSET ?`
+	args = append(args, limit, max(0, filter.Offset))
+	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {
 		return nil, fmt.Errorf("search memories: %w", err)
 	}
 	defer rows.Close()
-	return scanMemories(rows)
+	return scanMemoriesSearch(rows)
 }
 
 func (s *Store) listRecent(limit int) ([]Memory, error) {
-	rows, err := s.db.Query(`
-		SELECT id, content, tags, memory_type, created_at, updated_at, 0 AS score, '' AS highlights
-		FROM memories
-		ORDER BY updated_at DESC
-		LIMIT ?`, limit)
+	return s.listRecentFiltered(limit, 0, ResolveUserID(), MemoryFilter{})
+}
+
+func (s *Store) listRecentFiltered(limit, offset int, userID string, filter MemoryFilter) ([]Memory, error) {
+	query := `
+		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
+		FROM memories WHERE user_id = ?`
+	args := []any{userID}
+	query, args = appendFilterClauses(query, args, filter)
+	query += ` ORDER BY updated_at DESC LIMIT ? OFFSET ?`
+	args = append(args, limit, max(0, offset))
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list memories: %w", err)
 	}
 	defer rows.Close()
-	return scanMemories(rows)
+	return scanMemoriesFull(rows)
 }
 
 // Get returns one memory by ID.
 func (s *Store) Get(_ context.Context, id string) (*Memory, error) {
 	if s == nil || s.db == nil {
-		return nil, errors.New("store is closed")
+		return nil, errStoreClosed
 	}
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return nil, errors.New("id is required")
+	id, err := trimRequired(id, "id")
+	if err != nil {
+		return nil, err
 	}
 	row := s.db.QueryRow(`
-		SELECT id, content, tags, memory_type, created_at, updated_at
+		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
 		FROM memories WHERE id = ?`, id)
-	mem, err := scanMemory(row)
+	mem, err := scanMemoryFull(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("memory not found: %s", id)
 	}
@@ -242,17 +293,21 @@ func (s *Store) Get(_ context.Context, id string) (*Memory, error) {
 // Forget deletes a memory by ID.
 func (s *Store) Forget(_ context.Context, id string) error {
 	if s == nil {
-		return errors.New("store is closed")
+		return errStoreClosed
 	}
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return errors.New("id is required")
+	id, err := trimRequired(id, "id")
+	if err != nil {
+		return err
 	}
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.db == nil {
-		return errors.New("store is closed")
+		return errStoreClosed
+	}
+	old, err := s.getLocked(id)
+	if err != nil {
+		return err
 	}
 	res, err := s.db.Exec(`DELETE FROM memories WHERE id = ?`, id)
 	if err != nil {
@@ -265,7 +320,11 @@ func (s *Store) Forget(_ context.Context, id string) error {
 	if n == 0 {
 		return fmt.Errorf("memory not found: %s", id)
 	}
-	return nil
+	userID := old.UserID
+	if userID == "" {
+		userID = defaultUserID
+	}
+	return s.recordHistory(id, userID, historyDelete, old.Content, "")
 }
 
 // Stats returns basic store statistics.
@@ -277,16 +336,83 @@ func (s *Store) Stats(_ context.Context) (count int, err error) {
 	return count, err
 }
 
-func scanMemories(rows *sql.Rows) ([]Memory, error) {
+func scanMemoriesSearch(rows *sql.Rows) ([]Memory, error) {
 	var out []Memory
 	for rows.Next() {
-		mem, err := scanMemoryRow(rows)
+		mem, err := scanMemorySearchRow(rows)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, *mem)
 	}
 	return out, rows.Err()
+}
+
+func scanMemoriesFull(rows *sql.Rows) ([]Memory, error) {
+	var out []Memory
+	for rows.Next() {
+		mem, err := scanMemoryFullRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *mem)
+	}
+	return out, rows.Err()
+}
+
+func scanMemoryFull(row rowScanner) (*Memory, error) {
+	var (
+		id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID string
+	)
+	if err := row.Scan(&id, &content, &tagsJSON, &memoryType, &createdAt, &updatedAt, &metaJSON, &userID); err != nil {
+		return nil, err
+	}
+	return decodeMemoryFull(id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID, 0, "")
+}
+
+func scanMemoryFullRow(rows *sql.Rows) (*Memory, error) {
+	var (
+		id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID string
+	)
+	if err := rows.Scan(&id, &content, &tagsJSON, &memoryType, &createdAt, &updatedAt, &metaJSON, &userID); err != nil {
+		return nil, err
+	}
+	return decodeMemoryFull(id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID, 0, "")
+}
+
+func scanMemorySearchRow(rows *sql.Rows) (*Memory, error) {
+	var (
+		id, content, tagsJSON, memoryType, createdAt, updatedAt, highlights, metaJSON, userID string
+		score                                                                               float64
+	)
+	if err := rows.Scan(&id, &content, &tagsJSON, &memoryType, &createdAt, &updatedAt, &score, &highlights, &metaJSON, &userID); err != nil {
+		return nil, err
+	}
+	return decodeMemoryFull(id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID, score, highlights)
+}
+
+func decodeMemoryFull(id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID string, score float64, highlights string) (*Memory, error) {
+	mem, err := decodeMemory(id, content, tagsJSON, memoryType, createdAt, updatedAt, score, highlights)
+	if err != nil {
+		return nil, err
+	}
+	meta, err := decodeMetadata(metaJSON)
+	if err != nil {
+		return nil, err
+	}
+	mem.Metadata = meta
+	mem.UserID = userID
+	if mem.UserID == "" {
+		mem.UserID = defaultUserID
+	}
+	return mem, nil
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 type rowScanner interface {

@@ -116,8 +116,8 @@ func TestStatsReflectsStoreSize(t *testing.T) {
 		t.Fatalf("initial count = %d", count)
 	}
 
-	for range 3 {
-		if _, err := store.Remember(ctx, "item", nil, "note"); err != nil {
+	for i := range 3 {
+		if _, err := store.Remember(ctx, fmt.Sprintf("item %d", i), nil, "note"); err != nil {
 			t.Fatal(err)
 		}
 	}
