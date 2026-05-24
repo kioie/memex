@@ -116,10 +116,7 @@ func (s *Store) List(_ context.Context, filter MemoryFilter) ([]Memory, error) {
 	if limit <= 0 {
 		limit = 10
 	}
-	offset := filter.Offset
-	if offset < 0 {
-		offset = 0
-	}
+	offset := max(0, filter.Offset)
 	userID := ResolveUserIDArg(filter.UserID)
 
 	query := `

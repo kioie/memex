@@ -44,6 +44,85 @@ func TestRecallHandlerLimitCap(t *testing.T) {
 	})
 }
 
+func TestMem0ToolHandlers(t *testing.T) {
+	store, ctx := openTestStore(t)
+	h := &toolHandlers{store: store}
+
+	rememberRes, _, err := h.remember(ctx, nil, rememberArgs{
+		Content:  "Prefers dark mode",
+		Tags:     []string{"ui"},
+		Type:     "preference",
+		UserID:   "alice",
+		Metadata: map[string]any{"source": "test"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := extractRememberedID(t, textFromResult(rememberRes))
+
+	listRes, _, err := h.listMemories(ctx, nil, listMemoriesArgs{UserID: "alice", Limit: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if countJSONMemories(t, textFromResult(listRes)) != 1 {
+		t.Fatalf("list_memories = %q", textFromResult(listRes))
+	}
+
+	updateRes, _, err := h.updateMemory(ctx, nil, updateMemoryArgs{
+		ID: id, Content: "Prefers light mode", Tags: []string{"ui"}, Type: "preference",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(textFromResult(updateRes), "Prefers light mode") {
+		t.Fatalf("update_memory = %q", textFromResult(updateRes))
+	}
+
+	histRes, _, err := h.memoryHistory(ctx, nil, memoryHistoryArgs{ID: id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(textFromResult(histRes), historyUpdate) {
+		t.Fatalf("memory_history = %q", textFromResult(histRes))
+	}
+
+	m2, _, err := h.remember(ctx, nil, rememberArgs{Content: "Second memory", UserID: "alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2 := extractRememberedID(t, textFromResult(m2))
+
+	delRes, _, err := h.deleteMemories(ctx, nil, deleteMemoriesArgs{IDs: []string{id, id2}, UserID: "alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(textFromResult(delRes), "Deleted 2 memories") {
+		t.Fatalf("delete_memories = %q", textFromResult(delRes))
+	}
+
+	m3, _, err := h.remember(ctx, nil, rememberArgs{Content: "Wipe me", UserID: "alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id3 := extractRememberedID(t, textFromResult(m3))
+
+	_, _, err = h.deleteAllMemories(ctx, nil, deleteAllMemoriesArgs{UserID: "alice"})
+	if err == nil || !strings.Contains(err.Error(), "confirm=true") {
+		t.Fatalf("delete_all without confirm = %v", err)
+	}
+
+	wipeRes, _, err := h.deleteAllMemories(ctx, nil, deleteAllMemoriesArgs{UserID: "alice", Confirm: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(textFromResult(wipeRes), "Deleted all 1 memories") {
+		t.Fatalf("delete_all_memories = %q", textFromResult(wipeRes))
+	}
+	if id3 == "" {
+		t.Fatal("setup failed")
+	}
+}
+
 func TestToolHandlersPropagateStoreErrors(t *testing.T) {
 	store, ctx := openTestStore(t)
 	h := &toolHandlers{store: store}

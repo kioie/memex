@@ -251,10 +251,6 @@ func (s *Store) Search(_ context.Context, query string, filter MemoryFilter) ([]
 	return scanMemoriesSearch(rows)
 }
 
-func (s *Store) listRecent(limit int) ([]Memory, error) {
-	return s.listRecentFiltered(limit, 0, ResolveUserID(), MemoryFilter{})
-}
-
 func (s *Store) listRecentFiltered(limit, offset int, userID string, filter MemoryFilter) ([]Memory, error) {
 	query := `
 		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
@@ -408,36 +404,8 @@ func decodeMemoryFull(id, content, tagsJSON, memoryType, createdAt, updatedAt, m
 	return mem, nil
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 type rowScanner interface {
 	Scan(dest ...any) error
-}
-
-func scanMemory(row rowScanner) (*Memory, error) {
-	var (
-		id, content, tagsJSON, memoryType, createdAt, updatedAt string
-	)
-	if err := row.Scan(&id, &content, &tagsJSON, &memoryType, &createdAt, &updatedAt); err != nil {
-		return nil, err
-	}
-	return decodeMemory(id, content, tagsJSON, memoryType, createdAt, updatedAt, 0, "")
-}
-
-func scanMemoryRow(rows *sql.Rows) (*Memory, error) {
-	var (
-		id, content, tagsJSON, memoryType, createdAt, updatedAt, highlights string
-		score                                                               float64
-	)
-	if err := rows.Scan(&id, &content, &tagsJSON, &memoryType, &createdAt, &updatedAt, &score, &highlights); err != nil {
-		return nil, err
-	}
-	return decodeMemory(id, content, tagsJSON, memoryType, createdAt, updatedAt, score, highlights)
 }
 
 func decodeMemory(id, content, tagsJSON, memoryType, createdAt, updatedAt string, score float64, highlights string) (*Memory, error) {

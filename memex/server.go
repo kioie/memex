@@ -228,10 +228,7 @@ func clampLimitOffset(limit, offset int) (int, int) {
 	if limit > 50 {
 		limit = 50
 	}
-	if offset < 0 {
-		offset = 0
-	}
-	return limit, offset
+	return limit, max(0, offset)
 }
 
 func formatRemembered(mem *Memory) string {
