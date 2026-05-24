@@ -15,7 +15,7 @@ func openTestStore(t *testing.T) (*Store, context.Context) {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	return store, context.Background()
+	return store, t.Context()
 }
 
 func seedMemories(t *testing.T, store *Store, ctx context.Context, n int, prefix string) []string {

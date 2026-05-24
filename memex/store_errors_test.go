@@ -1,7 +1,6 @@
 package memex
 
 import (
-	"context"
 	"strings"
 	"testing"
 )
@@ -154,7 +153,7 @@ func TestClosedStoreErrors(t *testing.T) {
 
 func TestNilStoreErrors(t *testing.T) {
 	var store *Store
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if _, err := store.Remember(ctx, "x", nil, "note"); err == nil {
 		t.Fatal("expected error on nil store Remember")

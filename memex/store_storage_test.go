@@ -166,7 +166,6 @@ func TestLargeContentStorage(t *testing.T) {
 	}
 
 	for _, size := range sizes {
-		size := size
 		t.Run(formatSize(size), func(t *testing.T) {
 			store, ctx := openTestStore(t)
 			token := fmt.Sprintf("hello-%d", size)
