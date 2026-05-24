@@ -4,11 +4,15 @@ Guidance for AI coding agents working in this repository.
 
 ## Commands
 
-- **Test all (CI / quick)**: `make test` or `go test -race ./...` (uses `-short`; skips 1k/5k scale and 1MiB payloads)
-- **Test full scale**: `go test -race ./memex` (includes 1,000 inserts, 5,000 row search, 1MiB content)
+- **Test all (CI / quick)**: `make test` or `go test -race -short ./...`
+- **Test full scale**: `make test-full` or `go test -race ./memex ./cmd/memex`
+- **Test integration**: `make test-integration` (MCP stdio subprocess; `-tags=integration`)
 - **Benchmarks**: `go test -bench=. -benchmem ./memex`
 - **Test package**: `go test -race -v ./memex`
 - **Test single**: `go test -run TestName ./memex -v`
+- **Coverage**: `make coverage` / `make coverage-check` (≥75% on `memex/`)
+- **Lint**: `make lint` (requires [golangci-lint](https://golangci-lint.run/))
+- **Vulnerabilities**: `make vulncheck` (requires [govulncheck](https://go.dev/doc/security/vuln/))
 - **Build CLI**: `make build` → `bin/memex`
 - **Install**: `make install` or `go install ./cmd/memex`
 - **Run MCP server**: `go run ./cmd/memex serve` (stdio; for local MCP clients)
@@ -17,6 +21,7 @@ Guidance for AI coding agents working in this repository.
 
 - `memex/` — importable library (`github.com/kioie/memex/memex`): SQLite store + MCP tool registration
 - `cmd/memex/` — CLI (`memex serve`)
+- `integration/` — MCP stdio subprocess tests (`//go:build integration`)
 
 ## MCP tools
 
@@ -49,7 +54,22 @@ Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when
 | `store_errors_test.go` | Validation, nil/closed store, query sanitization |
 | `store_persistence_test.go` | Reopen durability, idempotent Open |
 | `store_scale_test.go` | 100–5,000 inserts, search latency, concurrent writes, benchmarks |
+| `store_security_test.go` | Special content, env paths, injection-style payloads |
+| `mcp_roundtrip_test.go` | In-memory MCP client ↔ server tool roundtrip |
 | `server_test.go` | MCP recall cap (50), error propagation, format helpers |
+
+Integration (`integration/mcp_stdio_test.go`): real subprocess `memex serve` over stdio.
+
+## CI workflows
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `unit.yml` | PR, push | Race + `-short`, release build, coverage gate |
+| `integration.yml` | PR, push | MCP stdio roundtrip |
+| `scale.yml` | Daily cron | Full scale suite (no `-short`) |
+| `lint.yml` | PR, push | golangci-lint |
+| `codeql.yml` | PR, push, weekly | Static security analysis |
+| `security.yml` | PR, push, weekly | govulncheck |
 
 **Known limits (current implementation):**
 
@@ -61,4 +81,4 @@ Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when
 
 ## CI expectations
 
-PRs should pass `make test` and `make release`.
+PRs should pass: unit tests, integration tests, lint, coverage check, release build. CodeQL and govulncheck run on PRs and weekly schedules.

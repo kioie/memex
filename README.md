@@ -4,7 +4,9 @@
 
 Inspired by [Vannevar Bush's memex](https://en.wikipedia.org/wiki/Memex): a device for storing and linking knowledge. This project gives coding agents and LLM clients persistent memory across sessions — no API keys, no cloud, no vector DB setup.
 
-[![CI](https://github.com/kioie/memex/actions/workflows/ci.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/ci.yml)
+[![Unit Tests](https://github.com/kioie/memex/actions/workflows/unit.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/unit.yml)
+[![Integration Tests](https://github.com/kioie/memex/actions/workflows/integration.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/integration.yml)
+[![CodeQL](https://github.com/kioie/memex/actions/workflows/codeql.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/codeql.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/kioie/memex/memex.svg)](https://pkg.go.dev/github.com/kioie/memex/memex)
 
 Built with [tiny-go-mcp-server](https://github.com/kioie/tiny-go-mcp-server) and the official [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk).
@@ -71,9 +73,13 @@ Memories live in `~/.memex/memex.db` (override with `MEMEX_DIR`).
 ```bash
 git clone https://github.com/kioie/memex.git
 cd memex
-make test
+make test              # fast unit suite (race + -short)
+make test-integration  # MCP stdio subprocess roundtrip
+make test-full         # scale tests (1k–5k rows, large payloads)
 go run ./cmd/memex serve
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full test tier breakdown and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
 Set `MEMEX_VERBOSE=1` to log the database path to stderr.
 

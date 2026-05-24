@@ -1,0 +1,57 @@
+# Contributing
+
+Thank you for contributing to **memex**.
+
+## Prerequisites
+
+- Go 1.26+ ([download](https://go.dev/dl/))
+- Optional: [golangci-lint](https://golangci-lint.run/) for local linting
+
+## Setup
+
+```bash
+git clone https://github.com/kioie/memex.git
+cd memex
+go mod download
+```
+
+## Test tiers
+
+memex uses a tiered test strategy (similar to large OSS projects): fast checks on every PR, deeper suites on a schedule.
+
+| Tier | Command | When | What it covers |
+|------|---------|------|----------------|
+| **Unit** | `make test` | Every PR | Race detector + `-short` (skips 1k/5k scale, 1MiB payloads) |
+| **Full scale** | `make test-full` | Nightly + before releases | 1,000–5,000 row inserts, large payloads, concurrency |
+| **Integration** | `make test-integration` | PR + nightly | Real MCP stdio subprocess roundtrip |
+| **Coverage** | `make coverage` | CI | Package coverage report |
+| **Security** | `make vulncheck` | Weekly CI | Go vulnerability scan |
+
+## Workflow
+
+1. Create a branch from `main` (use prefix `kioie/` if you maintain this repo).
+2. Make changes in `memex/` (library) or `cmd/memex/` (CLI).
+3. Run checks locally:
+
+   ```bash
+   make test
+   make test-integration   # if MCP or CLI changed
+   make lint               # if golangci-lint is installed
+   ```
+
+4. Open a pull request against `main`.
+
+## Coverage expectation
+
+New code in `memex/` should maintain **≥75%** package coverage (`make coverage-check` enforces this in CI). Prefer meaningful tests over trivial assertions.
+
+## Adding MCP tools
+
+1. Add store logic in `memex/store.go` if needed.
+2. Register the tool in `memex/server.go` with a description that states when to use, when not to, and sibling tools.
+3. Add unit tests in `memex/*_test.go` and MCP roundtrip coverage in `memex/mcp_roundtrip_test.go`.
+4. Update `AGENTS.md` tool table.
+
+## Questions
+
+Open a [GitHub issue](https://github.com/kioie/memex/issues) for bugs or feature requests.
