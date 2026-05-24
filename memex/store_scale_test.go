@@ -1,8 +1,8 @@
 package memex
 
 import (
-	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -96,7 +96,7 @@ func TestScaleLargeDataset(t *testing.T) {
 		t.Fatalf("limited search returned %d, want 50", len(results))
 	}
 	for _, mem := range results {
-		if !containsSubstring(mem.Content, "keyword-odd") && !containsTag(mem.Tags, "odd") {
+		if !containsSubstring(mem.Content, "keyword-odd") && !slices.Contains(mem.Tags, "odd") {
 			t.Fatalf("irrelevant result: %+v", mem)
 		}
 	}
@@ -201,7 +201,7 @@ func BenchmarkRemember(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ResetTimer()
 	for i := range b.N {
@@ -218,7 +218,7 @@ func BenchmarkRecall(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := b.Context()
 	for i := range scaleSearchN {
 		if _, err := store.Remember(ctx, fmt.Sprintf("bench entry %04d keyword-%s", i, parityKeyword(i)), []string{"bench"}, "note"); err != nil {
 			b.Fatal(err)
@@ -244,13 +244,4 @@ func stringIndex(s, sub string) int {
 		}
 	}
 	return -1
-}
-
-func containsTag(tags []string, want string) bool {
-	for _, tag := range tags {
-		if tag == want {
-			return true
-		}
-	}
-	return false
 }

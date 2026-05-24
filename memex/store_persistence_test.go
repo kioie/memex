@@ -1,14 +1,13 @@
 package memex
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 )
 
 func TestStorePersistsAcrossReopen(t *testing.T) {
 	dir := t.TempDir()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var id string
 	func() {
@@ -58,7 +57,7 @@ func TestStorePersistsAcrossReopen(t *testing.T) {
 
 func TestOpenIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for range 3 {
 		store, err := Open(dir)

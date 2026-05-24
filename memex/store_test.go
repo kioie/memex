@@ -1,7 +1,6 @@
 package memex
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 )
@@ -14,7 +13,7 @@ func TestStoreRememberRecallForget(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mem, err := store.Remember(ctx, "Prefers table-driven tests in Go", []string{"testing", "go"}, "preference")
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +57,7 @@ func TestStoreListRecent(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, content := range []string{"alpha", "beta", "gamma"} {
 		if _, err := store.Remember(ctx, content, nil, "note"); err != nil {
 			t.Fatal(err)
