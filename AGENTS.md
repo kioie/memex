@@ -56,7 +56,7 @@ Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when
 - **Recall default**: 10 rows at store level; MCP handler caps at **50**
 - **Content size**: no app-level cap; SQLite TEXT supports ~1GB; tests verify 1KiB–1MiB
 - **Scale**: 5,000 rows insert + FTS search passes; not a hard limit
-- **Concurrent writes**: single `*sql.DB` — some `SQLITE_BUSY` under parallel writers; reads are safe
+- **Concurrent writes**: serialized with an in-process write mutex; SQLite `busy_timeout` (5s) covers multi-process access to the same DB file
 - **FTS queries**: tokenized and quoted per word (`buildFTSQuery`); boolean operators in user input are not interpreted
 
 ## CI expectations

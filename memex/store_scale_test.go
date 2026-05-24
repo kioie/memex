@@ -3,7 +3,6 @@ package memex
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -109,8 +108,7 @@ func TestConcurrentRemember(t *testing.T) {
 	const workers = 8
 	const perWorker = 25
 	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var success, busy int
+	errs := make(chan error, workers*perWorker)
 
 	for w := range workers {
 		wg.Add(1)
@@ -118,36 +116,81 @@ func TestConcurrentRemember(t *testing.T) {
 			defer wg.Done()
 			for i := range perWorker {
 				content := fmt.Sprintf("worker-%d item-%d", worker, i)
-				_, err := store.Remember(ctx, content, []string{"concurrent"}, "note")
-				mu.Lock()
-				switch {
-				case err == nil:
-					success++
-				case strings.Contains(err.Error(), "database is locked"):
-					busy++
-				default:
-					t.Errorf("unexpected remember error: %v", err)
+				if _, err := store.Remember(ctx, content, []string{"concurrent"}, "note"); err != nil {
+					errs <- err
 				}
-				mu.Unlock()
 			}
 		}(w)
 	}
 	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Fatalf("concurrent remember failed: %v", err)
+	}
 
 	want := workers * perWorker
-	if success == 0 {
-		t.Fatal("expected at least one successful concurrent write")
-	}
-	if success+busy != want {
-		t.Fatalf("success=%d busy=%d, want total %d", success, busy, want)
-	}
-	// SQLite serializes writers on a single connection; some SQLITE_BUSY is expected.
 	count, err := store.Stats(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != success {
-		t.Fatalf("stats count = %d, successful writes = %d", count, success)
+	if count != want {
+		t.Fatalf("count = %d, want %d", count, want)
+	}
+}
+
+func TestConcurrentRememberAndRecall(t *testing.T) {
+	store, ctx := openTestStore(t)
+
+	const writers = 6
+	const readers = 4
+	const perWriter = 20
+
+	var wg sync.WaitGroup
+	errs := make(chan error, writers*perWriter+readers)
+
+	for w := range writers {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			for i := range perWriter {
+				content := fmt.Sprintf("mixed worker-%d item-%d searchable", worker, i)
+				if _, err := store.Remember(ctx, content, []string{"mixed"}, "note"); err != nil {
+					errs <- fmt.Errorf("remember: %w", err)
+				}
+			}
+		}(w)
+	}
+
+	for r := range readers {
+		wg.Add(1)
+		go func(reader int) {
+			defer wg.Done()
+			for range perWriter {
+				if _, err := store.Recall(ctx, "searchable", 5); err != nil {
+					errs <- fmt.Errorf("recall reader %d: %w", reader, err)
+				}
+				if _, err := store.Stats(ctx); err != nil {
+					errs <- fmt.Errorf("stats reader %d: %w", reader, err)
+				}
+			}
+		}(r)
+	}
+
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Fatal(err)
+	}
+
+	want := writers * perWriter
+	count, err := store.Stats(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != want {
+		t.Fatalf("count = %d, want %d", count, want)
 	}
 }
 
