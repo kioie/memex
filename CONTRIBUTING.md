@@ -32,8 +32,8 @@ memex uses a tiered test strategy (similar to large OSS projects): fast checks o
 
 1. Import the repo at [SonarCloud](https://sonarcloud.io) (organization `kioie`, project key `kioie_memex`).
 2. GitHub **Settings → Secrets and variables → Actions**:
-   - Secret: `SONAR_TOKEN` (from SonarCloud)
-   - Variable: `SONAR_HOST_URL` = `https://sonarcloud.io`
+   - Secret: **`SONAR_TOKEN`** (required — from SonarCloud → My Account → Security)
+   - Variable: `SONAR_HOST_URL` (optional — only for self-hosted; defaults to `https://sonarcloud.io`)
 3. Create or clone a **strict quality gate** in SonarCloud and assign it to this project:
 
    | Condition | Scope | Threshold |

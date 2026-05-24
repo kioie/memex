@@ -77,8 +77,8 @@ Integration (`integration/mcp_stdio_test.go`): real subprocess `memex serve` ove
 
 1. Import the repo at [SonarCloud](https://sonarcloud.io) (org `kioie`, project key `kioie_memex`).
 2. GitHub **Settings → Secrets and variables → Actions**:
-   - Secret: `SONAR_TOKEN`
-   - Variable: `SONAR_HOST_URL` = `https://sonarcloud.io`
+   - Secret: **`SONAR_TOKEN`** (required — from SonarCloud → My Account → Security)
+   - Variable: `SONAR_HOST_URL` (optional — only for self-hosted; defaults to `https://sonarcloud.io`)
 3. Assign a **strict quality gate** to the project (see CONTRIBUTING.md). CI fails on `FAILED` or `WARN`.
 
 **Stringent CI behavior (`sonar.yml`):**
