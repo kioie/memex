@@ -5,7 +5,7 @@ go 1.26.3
 require (
 	github.com/google/uuid v1.6.0
 	github.com/kioie/tiny-go-mcp-server v1.1.2
-	github.com/modelcontextprotocol/go-sdk v1.6.0
+	github.com/modelcontextprotocol/go-sdk v1.6.1
 	modernc.org/sqlite v1.46.1
 )
 
