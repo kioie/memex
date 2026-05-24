@@ -26,6 +26,30 @@ memex uses a tiered test strategy (similar to large OSS projects): fast checks o
 | **Integration** | `make test-integration` | PR + nightly | Real MCP stdio subprocess roundtrip |
 | **Coverage** | `make coverage` | CI | Package coverage report |
 | **Security** | `make vulncheck` | Weekly CI | Go vulnerability scan |
+| **SonarQube** | CI workflow `sonar.yml` | PR + push to `main` | Static analysis + 80% coverage floor + strict quality gate |
+
+## SonarQube setup
+
+1. Import the repo at [SonarCloud](https://sonarcloud.io) (organization `kioie`, project key `kioie_memex`).
+2. GitHub **Settings → Secrets and variables → Actions**:
+   - Secret: `SONAR_TOKEN` (from SonarCloud)
+   - Variable: `SONAR_HOST_URL` = `https://sonarcloud.io`
+3. Create or clone a **strict quality gate** in SonarCloud and assign it to this project:
+
+   | Condition | Scope | Threshold |
+   |-----------|-------|-----------|
+   | No new bugs | New code | 0 |
+   | No new vulnerabilities | New code | 0 |
+   | No new code smells / maintainability rating | New code | A (or 0 smells) |
+   | Coverage | New code | ≥ 80% |
+   | Duplicated lines | New code | ≤ 3% |
+   | Security hotspots reviewed | New code | 100% |
+   | Coverage | Overall | ≥ 75% |
+
+4. **Disable the quality gate fudge factor** for this project (Project Settings → Quality Gate) so small PRs still enforce coverage and duplication rules.
+5. Use the **Sonar way** quality profile (default) or stricter; do not relax issue severities for Go.
+
+Local check before pushing: `make coverage-sonar-check` (80% floor on `memex/`).
 
 ## Workflow
 

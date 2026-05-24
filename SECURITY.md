@@ -22,6 +22,7 @@ CI runs:
 
 - **CodeQL** static analysis (`.github/workflows/codeql.yml`)
 - **govulncheck** for known Go module vulnerabilities (`.github/workflows/security.yml`)
+- **SonarQube** static analysis with an **80% coverage floor** and strict quality gate enforcement (`.github/workflows/sonar.yml`; requires `SONAR_TOKEN`)
 - **Dependabot** for dependency and GitHub Actions updates
 
 ## Threat notes
