@@ -16,6 +16,7 @@ import (
 )
 
 func TestMemexStdioMCPRoundtrip(t *testing.T) {
+	// Exercises memex serve end-to-end: CLI → NewMCPServer → tinymcp stdio transport.
 	if runtime.GOOS == "windows" {
 		t.Skip("stdio subprocess integration test skipped on windows CI for now")
 	}

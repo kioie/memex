@@ -7,6 +7,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// MCP roundtrip tests attach via server.RawServer() — tinymcp exposes the underlying go-sdk server.
+
 func TestMCPRememberRecallForgetRoundtrip(t *testing.T) {
 	store, ctx := openTestStore(t)
 	server, err := NewMCPServer(store)

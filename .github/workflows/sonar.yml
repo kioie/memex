@@ -26,6 +26,15 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Verify SonarCloud credentials
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::SONAR_TOKEN secret is not configured. Add it under GitHub Settings → Secrets and variables → Actions (see CONTRIBUTING.md)."
+            exit 1
+          fi
+
       - name: Generate coverage for SonarQube
         run: make coverage-sonar
 
@@ -36,7 +45,8 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v8.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          # Default to SonarCloud when the repo variable is unset (empty env breaks the scanner).
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
 
       - name: SonarQube Quality Gate check
         id: sonarqube-quality-gate-check
@@ -45,7 +55,7 @@ jobs:
           pollingTimeoutSec: 600
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
 
       - name: Fail on quality gate warnings
         if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status != 'PASSED'

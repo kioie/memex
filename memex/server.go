@@ -32,7 +32,9 @@ type getArgs struct {
 	ID string `json:"id" jsonschema:"Memory ID to fetch (required)"`
 }
 
-// NewMCPServer registers memex memory tools on a TinyServer backed by store.
+// NewMCPServer registers memex memory tools on a tinymcp.TinyServer backed by store.
+// Handlers follow tinymcp.RegisterTool conventions (json/jsonschema args, TextResult replies).
+// The returned server's Start method blocks on stdio; RawServer supports in-memory tests.
 func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store is required")

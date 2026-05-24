@@ -10,8 +10,6 @@ Inspired by [Vannevar Bush's memex](https://en.wikipedia.org/wiki/Memex): a devi
 [![CodeQL](https://github.com/kioie/memex/actions/workflows/codeql.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/codeql.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/kioie/memex/memex.svg)](https://pkg.go.dev/github.com/kioie/memex/memex)
 
-Built with [tiny-go-mcp-server](https://github.com/kioie/tiny-go-mcp-server) and the official [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk).
-
 **Requirements:** Go 1.26+
 
 ---
@@ -79,6 +77,8 @@ make test-integration  # MCP stdio subprocess roundtrip
 make test-full         # scale tests (1k–5k rows, large payloads)
 go run ./cmd/memex serve
 ```
+
+Layer split: `memex/store.go` owns SQLite + FTS; `memex/server.go` registers tools via `tinymcp.RegisterTool` and serves over stdio (`server.Start`). Roundtrip tests use `server.RawServer()` for in-memory transport; integration tests spawn the CLI subprocess.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full test tier breakdown and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
