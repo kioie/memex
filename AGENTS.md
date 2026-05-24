@@ -4,9 +4,12 @@ Guidance for AI coding agents working in this repository.
 
 ## Commands
 
-- **Test all**: `make test` or `go test -race ./...`
+- **Test all (CI / quick)**: `make test` or `go test -race ./...` (uses `-short`; skips 1k/5k scale and 1MiB payloads)
+- **Test full scale**: `go test -race ./memex` (includes 1,000 inserts, 5,000 row search, 1MiB content)
+- **Benchmarks**: `go test -bench=. -benchmem ./memex`
 - **Test package**: `go test -race -v ./memex`
-- **Build CLI**: `make build` → `./memex`
+- **Test single**: `go test -run TestName ./memex -v`
+- **Build CLI**: `make build` → `bin/memex`
 - **Install**: `make install` or `go install ./cmd/memex`
 - **Run MCP server**: `go run ./cmd/memex serve` (stdio; for local MCP clients)
 
@@ -36,6 +39,25 @@ Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when
 - Standard Go formatting (`gofmt` / `goimports`)
 - Godoc on exported symbols
 - Table-driven tests in `memex/*_test.go`
+
+## Test layout
+
+| File | Covers |
+|------|--------|
+| `store_test.go` | Basic remember/recall/forget/list |
+| `store_storage_test.go` | Field persistence, FTS search, limits, large payloads |
+| `store_errors_test.go` | Validation, nil/closed store, query sanitization |
+| `store_persistence_test.go` | Reopen durability, idempotent Open |
+| `store_scale_test.go` | 100–5,000 inserts, search latency, concurrent writes, benchmarks |
+| `server_test.go` | MCP recall cap (50), error propagation, format helpers |
+
+**Known limits (current implementation):**
+
+- **Recall default**: 10 rows at store level; MCP handler caps at **50**
+- **Content size**: no app-level cap; SQLite TEXT supports ~1GB; tests verify 1KiB–1MiB
+- **Scale**: 5,000 rows insert + FTS search passes; not a hard limit
+- **Concurrent writes**: single `*sql.DB` — some `SQLITE_BUSY` under parallel writers; reads are safe
+- **FTS queries**: tokenized and quoted per word (`buildFTSQuery`); boolean operators in user input are not interpreted
 
 ## CI expectations
 
