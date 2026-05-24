@@ -14,8 +14,12 @@ func TestResolveDirUsesEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != dir {
-		t.Fatalf("ResolveDir() = %q, want %q", got, dir)
+	want, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("ResolveDir() = %q, want %q", got, want)
 	}
 }
 

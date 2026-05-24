@@ -90,26 +90,21 @@ func DefaultDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".memex"), nil
+	return resolveDataDir(filepath.Join(home, ".memex"))
 }
 
-// ResolveDir picks MEMEX_DIR, or falls back to DefaultDir.
-func ResolveDir() (string, error) {
-	if dir := strings.TrimSpace(os.Getenv("MEMEX_DIR")); dir != "" {
-		return dir, nil
-	}
-	return DefaultDir()
-}
+// ResolveDir is implemented in store_path.go.
 
 // Open creates or opens a store at dir/memex.db.
 func Open(dir string) (*Store, error) {
-	if strings.TrimSpace(dir) == "" {
-		return nil, errors.New("memex dir is required")
+	absDir, err := resolveDataDir(dir)
+	if err != nil {
+		return nil, err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(absDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create memex dir: %w", err)
 	}
-	path := filepath.Join(dir, "memex.db")
+	path := filepath.Join(absDir, "memex.db")
 	dsn := fmt.Sprintf("%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(%d)",
 		path, defaultBusyTimeout.Milliseconds())
 	db, err := sql.Open("sqlite", dsn)
@@ -227,22 +222,12 @@ func (s *Store) Search(_ context.Context, query string, filter MemoryFilter) ([]
 	if limit <= 0 {
 		limit = 10
 	}
-	userID := ResolveUserIDArg(filter.UserID)
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return s.listRecentFiltered(limit, filter.Offset, userID, filter)
+		return s.listRecentFiltered(limit, filter)
 	}
 	ftsQuery := buildFTSQuery(query)
-	sqlText := `
-		SELECT m.id, m.content, m.tags, m.memory_type, m.created_at, m.updated_at, bm25(memories_fts) AS score,
-		       snippet(memories_fts, 0, '[', ']', '…', 12) AS highlights, m.metadata, m.user_id
-		FROM memories_fts
-		JOIN memories m ON m.rowid = memories_fts.rowid
-		WHERE memories_fts MATCH ? AND m.user_id = ?`
-	args := []any{ftsQuery, userID}
-	sqlText, args = appendFilterClauses(sqlText, args, filter)
-	sqlText += ` ORDER BY score LIMIT ? OFFSET ?`
-	args = append(args, limit, max(0, filter.Offset))
+	sqlText, args := searchMemoriesSQL(ftsQuery, filter, limit, max(0, filter.Offset))
 	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {
 		return nil, fmt.Errorf("search memories: %w", err)
@@ -251,15 +236,10 @@ func (s *Store) Search(_ context.Context, query string, filter MemoryFilter) ([]
 	return scanMemoriesSearch(rows)
 }
 
-func (s *Store) listRecentFiltered(limit, offset int, userID string, filter MemoryFilter) ([]Memory, error) {
-	query := `
-		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
-		FROM memories WHERE user_id = ?`
-	args := []any{userID}
-	query, args = appendFilterClauses(query, args, filter)
-	query += ` ORDER BY updated_at DESC LIMIT ? OFFSET ?`
-	args = append(args, limit, max(0, offset))
-	rows, err := s.db.Query(query, args...)
+func (s *Store) listRecentFiltered(limit int, filter MemoryFilter) ([]Memory, error) {
+	filter.Limit = limit
+	sqlText, args := listMemoriesSQL(filter, limit, max(0, filter.Offset))
+	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list memories: %w", err)
 	}
@@ -453,17 +433,35 @@ func normalizeTags(tags []string) []string {
 }
 
 func buildFTSQuery(query string) string {
+	// Each token is quoted for FTS5 MATCH; the full string is always passed as a bound
+	// query parameter (never concatenated into SQL text).
 	parts := strings.Fields(query)
 	if len(parts) == 0 {
 		return query
 	}
 	quoted := make([]string, 0, len(parts))
 	for _, part := range parts {
-		part = strings.ReplaceAll(part, `"`, "")
-		if part == "" {
-			continue
+		if token := sanitizeFTSToken(part); token != "" {
+			quoted = append(quoted, `"`+token+`"`)
 		}
-		quoted = append(quoted, `"`+part+`"`)
+	}
+	if len(quoted) == 0 {
+		return `""`
 	}
 	return strings.Join(quoted, " OR ")
+}
+
+func sanitizeFTSToken(token string) string {
+	token = strings.Trim(token, `"`)
+	var b strings.Builder
+	for _, r := range token {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+			continue
+		}
+		if r > 127 {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
