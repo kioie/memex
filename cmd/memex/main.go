@@ -47,7 +47,7 @@ func runServe() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := server.Start(); err != nil {
+	if err := server.Start(); err != nil { // tinymcp stdio loop; stderr only for logs
 		log.Fatal(err)
 	}
 }

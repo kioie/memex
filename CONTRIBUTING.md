@@ -72,8 +72,8 @@ New code in `memex/` should maintain **≥75%** package coverage (`make coverage
 ## Adding MCP tools
 
 1. Add store logic in `memex/store.go` if needed.
-2. Register the tool in `memex/server.go` with a description that states when to use, when not to, and sibling tools.
-3. Add unit tests in `memex/*_test.go` and MCP roundtrip coverage in `memex/mcp_roundtrip_test.go`.
+2. Register in `memex/server.go` with `tinymcp.RegisterTool(server, name, desc, handler)` — args struct needs `json` and `jsonschema` tags; return text via `tinymcp.TextResult`. See [tinymcp](https://pkg.go.dev/github.com/kioie/tiny-go-mcp-server/tinymcp) for handler types and tool-description conventions.
+3. Add unit tests in `memex/*_test.go` and MCP roundtrip coverage in `memex/mcp_roundtrip_test.go` (use `server.RawServer()` for in-memory transport).
 4. Update `AGENTS.md` tool table.
 
 ## Questions

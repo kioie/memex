@@ -1,4 +1,8 @@
 // Package memex provides a local-first memory store and MCP server for AI agents.
+//
+// Persistence and search live here; the MCP wire protocol (stdio, tool schemas, handler
+// registration) is delegated to github.com/kioie/tiny-go-mcp-server/tinymcp — see
+// server.go for tool handlers and tinymcp godoc for RegisterTool / TextResult / Start.
 package memex
 
 import (

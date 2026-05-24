@@ -21,8 +21,20 @@ Guidance for AI coding agents working in this repository.
 ## Layout
 
 - `memex/` — importable library (`github.com/kioie/memex/memex`): SQLite store + MCP tool registration
-- `cmd/memex/` — CLI (`memex serve`)
+- `cmd/memex/` — CLI (`memex serve` → `NewMCPServer` + `tinymcp` stdio)
 - `integration/` — MCP stdio subprocess tests (`//go:build integration`)
+
+## MCP layer
+
+| Concern | Where | Notes |
+|---------|-------|-------|
+| Store / FTS | `memex/store.go` | No MCP imports |
+| Tool handlers | `memex/server.go` | `tinymcp.RegisterTool`, `tinymcp.TextResult` |
+| Stdio serve | `cmd/memex/main.go` | `server.Start()` from tinymcp |
+| In-memory tests | `mcp_roundtrip_test.go` | `server.RawServer().Connect(...)` |
+| Subprocess tests | `integration/mcp_stdio_test.go` | Full CLI + stdio path |
+
+Handler signature: `func(ctx, *mcp.CallToolRequest, args In) (*mcp.CallToolResult, any, error)` with struct tags `json` + `jsonschema`. Tool descriptions: when to use, when not to, sibling tools — same pattern as other tinymcp servers. Reference: [tinymcp package docs](https://pkg.go.dev/github.com/kioie/tiny-go-mcp-server/tinymcp).
 
 ## MCP tools
 
