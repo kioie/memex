@@ -115,7 +115,9 @@ func (s *Store) Close() error {
 	if s == nil || s.db == nil {
 		return nil
 	}
-	return s.db.Close()
+	err := s.db.Close()
+	s.db = nil
+	return err
 }
 
 // Remember stores a new memory and returns it with an assigned ID.
