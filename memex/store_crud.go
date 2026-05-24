@@ -117,18 +117,10 @@ func (s *Store) List(_ context.Context, filter MemoryFilter) ([]Memory, error) {
 		limit = 10
 	}
 	offset := max(0, filter.Offset)
-	userID := ResolveUserIDArg(filter.UserID)
 
-	query := `
-		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
-		FROM memories WHERE user_id = ?`
-	args := []any{userID}
-	query, args = appendFilterClauses(query, args, filter)
+	sqlText, args := listMemoriesSQL(filter, limit, offset)
 
-	query += ` ORDER BY updated_at DESC LIMIT ? OFFSET ?`
-	args = append(args, limit, offset)
-
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list memories: %w", err)
 	}
@@ -228,16 +220,4 @@ func (s *Store) ForgetAll(_ context.Context, userID string) (int, error) {
 		_ = s.recordHistory(p.id, userID, historyDelete, p.content, "")
 	}
 	return int(n), nil
-}
-
-func appendFilterClauses(query string, args []any, filter MemoryFilter) (string, []any) {
-	if t := strings.TrimSpace(filter.Type); t != "" {
-		query += ` AND memory_type = ?`
-		args = append(args, t)
-	}
-	for _, tag := range normalizeTags(filter.Tags) {
-		query += ` AND tags LIKE ?`
-		args = append(args, `%"`+tag+`"%`)
-	}
-	return query, args
 }
