@@ -1,0 +1,13 @@
+# Built CLI binary
+/bin/
+*.exe
+*.test
+*.prof
+coverage.out
+dist/
+
+# OS
+.DS_Store
+
+# Local memex data (when MEMEX_DIR points here)
+.memex/

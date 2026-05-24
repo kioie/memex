@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "memex": {
+      "command": "memex",
+      "args": ["serve"]
+    }
+  }
+}
