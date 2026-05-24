@@ -4,6 +4,7 @@
 *.test
 *.prof
 coverage.out
+coverage.out
 dist/
 
 # OS
