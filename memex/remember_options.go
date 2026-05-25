@@ -7,6 +7,7 @@ type rememberConfig struct {
 	UserID   string
 	AgentID  string
 	RunID    string
+	Source   string
 	Metadata map[string]any
 }
 
@@ -45,5 +46,12 @@ func WithRunID(runID string) RememberOption {
 func WithMetadata(metadata map[string]any) RememberOption {
 	return func(c *rememberConfig) {
 		c.Metadata = metadata
+	}
+}
+
+// WithSource sets who originated the memory: user, agent, or system.
+func WithSource(source string) RememberOption {
+	return func(c *rememberConfig) {
+		c.Source = source
 	}
 }

@@ -34,6 +34,7 @@ func migrateStore(db *sql.DB) error {
 		"run_id":        colTextNotNullEmpty,
 		"supersedes_id": colTextNotNullEmpty,
 		"valid_to":      colTextNotNullEmpty,
+		"source":        colTextNotNullEmpty,
 	}
 	for name, def := range columns {
 		exists, err := columnExists(db, "memories", name)
@@ -61,6 +62,12 @@ func migrateStore(db *sql.DB) error {
 	}
 	if _, err := db.Exec(eventsSchema); err != nil {
 		return fmt.Errorf("migrate events: %w", err)
+	}
+	if _, err := db.Exec(`UPDATE memories SET source = 'user' WHERE source = ''`); err != nil {
+		return fmt.Errorf("backfill source: %w", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_user_source ON memories(user_id, source)`); err != nil {
+		return fmt.Errorf("create source index: %w", err)
 	}
 	return nil
 }

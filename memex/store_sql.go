@@ -7,7 +7,7 @@ import (
 // Static SQL fragments for optional memory filters. User-supplied values are always
 // passed as bound parameters (?), never interpolated into the query text.
 const (
-	sqlMemoryColumns = `id, content, tags, memory_type, created_at, updated_at, metadata, user_id, agent_id, run_id, supersedes_id, valid_to`
+	sqlMemoryColumns = `id, content, tags, memory_type, created_at, updated_at, metadata, user_id, agent_id, run_id, supersedes_id, valid_to, source`
 	sqlSelectMemories = `
 		SELECT ` + sqlMemoryColumns + `
 		FROM memories WHERE user_id = ?`
@@ -25,7 +25,7 @@ const (
 		FROM memories WHERE user_id = ? AND valid_to = ?`
 	sqlSelectMemoriesSearch = `
 		SELECT m.id, m.content, m.tags, m.memory_type, m.created_at, m.updated_at, bm25(memories_fts) AS score,
-		       snippet(memories_fts, 0, '[', ']', '…', 12) AS highlights, m.metadata, m.user_id, m.agent_id, m.run_id, m.supersedes_id, m.valid_to
+		       snippet(memories_fts, 0, '[', ']', '…', 12) AS highlights, m.metadata, m.user_id, m.agent_id, m.run_id, m.supersedes_id, m.valid_to, m.source
 		FROM memories_fts
 		JOIN memories m ON m.rowid = memories_fts.rowid
 		WHERE memories_fts MATCH ? AND m.user_id = ?`
@@ -33,8 +33,12 @@ const (
 	clauseFilterTag          = ` AND tags LIKE ?`
 	clauseFilterAgentID      = ` AND agent_id = ?`
 	clauseFilterRunID        = ` AND run_id = ?`
+	clauseFilterSource       = ` AND source = ?`
 	suffixOrderUpdated       = ` ORDER BY updated_at DESC LIMIT ? OFFSET ?`
 	suffixOrderScore         = ` ORDER BY score LIMIT ? OFFSET ?`
+	sqlInsertMemory          = `
+		INSERT INTO memories (id, content, tags, memory_type, created_at, updated_at, content_hash, metadata, user_id, agent_id, run_id, supersedes_id, valid_to, source)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 )
 
 func listMemoriesSQL(filter MemoryFilter, limit, offset int) (string, []any, error) {
@@ -70,6 +74,13 @@ func filterClausesSQL(filter MemoryFilter, args *[]any, colPrefix string) (strin
 	if runID := ResolveRunIDArg(filter.RunID); runID != "" {
 		clauses.WriteString(clauseFilterRunID)
 		*args = append(*args, runID)
+	}
+	if src := strings.TrimSpace(filter.Source); src != "" {
+		if err := validateSource(src); err != nil {
+			return "", err
+		}
+		clauses.WriteString(clauseFilterSource)
+		*args = append(*args, src)
 	}
 	for _, tag := range normalizeTags(filter.Tags) {
 		clauses.WriteString(clauseFilterTag)

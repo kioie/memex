@@ -4,13 +4,13 @@ Local-first memory with **accurate recall under a token budget**, **append-only 
 
 ## Current baseline
 
-| Area | Status (v0.3.1 / Phase 2) |
+| Area | Status (v0.3.2 / Phase 3) |
 |------|---------------------------|
 | Scoping | `user_id`, `agent_id`, `run_id`; scoped get/forget/update/history; 256 KiB cap |
-| Retrieval | FTS5 + BM25; active-only by default; optional `include_inactive` |
+| Retrieval | FTS5 + BM25; active-only by default; optional `include_inactive`; filter by `source` |
 | Writes | Hash dedup; `update_memory` supersedes (new row); soft-delete via `valid_to` |
 | History | `memory_history` audit + `memory_events` append-only log |
-| Agent facts | `agent_id` / `run_id` stored; `MEMEX_AGENT_ID` / `MEMEX_RUN_ID` env defaults |
+| Agent facts | First-class `source` (`user`/`agent`/`system`); commitment types; agent-type default source |
 | Metadata | Stored and filterable on `recall` / `list_memories` |
 
 ## Target architecture
@@ -55,13 +55,15 @@ Read:   recall / retrieve_context → token budget → hybrid rank → JSON outp
 
 **Branch:** `kioie/v03-phase2-add-only`
 
-## Phase 3 — Agent facts first-class
+## Phase 3 — Agent facts first-class ✅ (v0.3.2)
 
 **Goal:** Reliable recall of agent commitments and assistant-originated facts.
 
-- `source`: `user` | `agent` | `system`
-- Types: `commitment`, `recommendation`, `action_taken`
-- Filter by `source` on recall
+- [x] `source`: `user` | `agent` | `system`
+- [x] Types: `commitment`, `recommendation`, `action_taken`
+- [x] Filter by `source` on recall / `list_memories`
+
+**Branch:** `kioie/v03-phase3-agent-facts`
 
 ## Phase 4 — Token-efficient retrieval
 
