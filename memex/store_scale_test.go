@@ -35,7 +35,7 @@ func TestScaleInsertAndStats(t *testing.T) {
 	// Every ID should be retrievable after bulk insert.
 	sample := []int{0, n / 2, n - 1}
 	for _, idx := range sample {
-		got, err := store.Get(ctx, ids[idx], "")
+		got, err := store.Get(ctx, ids[idx], "", "")
 		if err != nil {
 			t.Fatalf("Get sample idx %d: %v", idx, err)
 		}

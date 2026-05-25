@@ -40,15 +40,15 @@ Handler signature: `func(ctx, *mcp.CallToolRequest, args In) (*mcp.CallToolResul
 
 | Tool | Purpose |
 |------|---------|
-| `remember` | Store a durable fact (hash dedup per user_id; optional metadata) |
-| `recall` | FTS search / recent list with filters |
+| `remember` | Store a durable fact (hash dedup per user_id; optional agent/run scope + metadata) |
+| `recall` | FTS search / recent list with filters (user, agent, run, tags, type, metadata) |
 | `list_memories` | Paginated list with filters (no query) |
-| `update_memory` | Revise content by ID |
-| `get_memory` | Fetch one memory by exact ID |
-| `forget` | Delete one memory |
+| `update_memory` | Revise content by ID (scoped by user_id; optional agent_id) |
+| `get_memory` | Fetch one memory by exact ID (scoped; optional agent_id) |
+| `forget` | Delete one memory (scoped; optional agent_id) |
 | `delete_memories` | Batch delete |
 | `delete_all_memories` | Scoped wipe (`confirm=true`) |
-| `memory_history` | ADD/UPDATE/DELETE audit trail |
+| `memory_history` | ADD/UPDATE/DELETE audit trail (scoped by user_id) |
 
 Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when not to, and sibling tools.
 
@@ -56,6 +56,8 @@ Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when
 
 - `MEMEX_DIR` — data directory (default: `~/.memex`, database at `memex.db`)
 - `MEMEX_USER_ID` — default user scope for memories (mem0-style; default `default`)
+- `MEMEX_AGENT_ID` — default agent scope when tool args omit `agent_id`
+- `MEMEX_RUN_ID` — default run/session tag when tool args omit `run_id`
 - `MEMEX_VERBOSE=1` — log store path to stderr (stdio is reserved for MCP)
 
 ## Code style

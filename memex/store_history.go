@@ -31,10 +31,13 @@ func (s *Store) recordHistory(memoryID, userID, action, oldContent, newContent s
 	return err
 }
 
-// History returns change records for a memory, newest first.
-func (s *Store) History(_ context.Context, id string) ([]HistoryEntry, error) {
+// History returns change records for a memory scoped to userID, newest first.
+func (s *Store) History(ctx context.Context, id, userID string) ([]HistoryEntry, error) {
 	if s == nil || s.db == nil {
 		return nil, errStoreClosed
+	}
+	if _, err := s.Get(ctx, id, userID, ""); err != nil {
+		return nil, err
 	}
 	id, err := trimRequired(id, "id")
 	if err != nil {

@@ -11,31 +11,39 @@ import (
 )
 
 const serverName = "memex"
-const serverVersion = "0.2.0"
+const serverVersion = "0.3.0"
 
 type rememberArgs struct {
 	Content  string         `json:"content" jsonschema:"Fact, preference, decision, or note to store (required)"`
 	Tags     []string       `json:"tags,omitempty" jsonschema:"Optional tags for filtering (e.g. user, project, preference)"`
 	Type     string         `json:"type,omitempty" jsonschema:"Memory type: note, preference, decision, fact, or procedure"`
 	UserID   string         `json:"user_id,omitempty" jsonschema:"Scope memory to a user (defaults to MEMEX_USER_ID or default)"`
+	AgentID  string         `json:"agent_id,omitempty" jsonschema:"Scope memory to an agent (defaults to MEMEX_AGENT_ID when set)"`
+	RunID    string         `json:"run_id,omitempty" jsonschema:"Tag memory with a run/session id (defaults to MEMEX_RUN_ID when set)"`
 	Metadata map[string]any `json:"metadata,omitempty" jsonschema:"Optional JSON metadata bag (mem0-style)"`
 }
 
 type recallArgs struct {
-	Query  string   `json:"query,omitempty" jsonschema:"Search text; leave empty to list recent memories"`
-	Limit  int      `json:"limit,omitempty" jsonschema:"Maximum results (default 10, max 50)"`
-	Offset int      `json:"offset,omitempty" jsonschema:"Skip first N results for pagination"`
-	Tags   []string `json:"tags,omitempty" jsonschema:"Filter by tags (any match)"`
-	Type   string   `json:"type,omitempty" jsonschema:"Filter by memory type"`
-	UserID string   `json:"user_id,omitempty" jsonschema:"Scope search to user_id (defaults to MEMEX_USER_ID)"`
+	Query    string            `json:"query,omitempty" jsonschema:"Search text; leave empty to list recent memories"`
+	Limit    int               `json:"limit,omitempty" jsonschema:"Maximum results (default 10, max 50)"`
+	Offset   int               `json:"offset,omitempty" jsonschema:"Skip first N results for pagination"`
+	Tags     []string          `json:"tags,omitempty" jsonschema:"Filter by tags (any match)"`
+	Type     string            `json:"type,omitempty" jsonschema:"Filter by memory type"`
+	UserID   string            `json:"user_id,omitempty" jsonschema:"Scope search to user_id (defaults to MEMEX_USER_ID)"`
+	AgentID  string            `json:"agent_id,omitempty" jsonschema:"Filter by agent_id (defaults to MEMEX_AGENT_ID when set)"`
+	RunID    string            `json:"run_id,omitempty" jsonschema:"Filter by run_id (defaults to MEMEX_RUN_ID when set)"`
+	Metadata map[string]string `json:"metadata,omitempty" jsonschema:"Exact metadata key/value filters (e.g. {\"source\":\"agent\"})"`
 }
 
 type listMemoriesArgs struct {
-	Limit  int      `json:"limit,omitempty" jsonschema:"Maximum results (default 10, max 50)"`
-	Offset int      `json:"offset,omitempty" jsonschema:"Skip first N results"`
-	Tags   []string `json:"tags,omitempty" jsonschema:"Filter by tags (any match)"`
-	Type   string   `json:"type,omitempty" jsonschema:"Filter by memory type"`
-	UserID string   `json:"user_id,omitempty" jsonschema:"Scope list to user_id"`
+	Limit    int               `json:"limit,omitempty" jsonschema:"Maximum results (default 10, max 50)"`
+	Offset   int               `json:"offset,omitempty" jsonschema:"Skip first N results"`
+	Tags     []string          `json:"tags,omitempty" jsonschema:"Filter by tags (any match)"`
+	Type     string            `json:"type,omitempty" jsonschema:"Filter by memory type"`
+	UserID   string            `json:"user_id,omitempty" jsonschema:"Scope list to user_id"`
+	AgentID  string            `json:"agent_id,omitempty" jsonschema:"Filter by agent_id"`
+	RunID    string            `json:"run_id,omitempty" jsonschema:"Filter by run_id"`
+	Metadata map[string]string `json:"metadata,omitempty" jsonschema:"Exact metadata key/value filters"`
 }
 
 type updateMemoryArgs struct {
@@ -44,11 +52,14 @@ type updateMemoryArgs struct {
 	Tags     []string       `json:"tags,omitempty" jsonschema:"Replace tags when provided"`
 	Type     string         `json:"type,omitempty" jsonschema:"Replace memory type when provided"`
 	Metadata map[string]any `json:"metadata,omitempty" jsonschema:"Replace metadata when provided"`
+	UserID   string         `json:"user_id,omitempty" jsonschema:"Scope update to user_id (defaults to MEMEX_USER_ID)"`
+	AgentID  string         `json:"agent_id,omitempty" jsonschema:"Scope update to agent_id when set"`
 }
 
 type forgetArgs struct {
-	ID     string `json:"id" jsonschema:"Memory ID to delete (from remember or recall output)"`
-	UserID string `json:"user_id,omitempty" jsonschema:"Scope delete to user_id (defaults to MEMEX_USER_ID)"`
+	ID      string `json:"id" jsonschema:"Memory ID to delete (from remember or recall output)"`
+	UserID  string `json:"user_id,omitempty" jsonschema:"Scope delete to user_id (defaults to MEMEX_USER_ID)"`
+	AgentID string `json:"agent_id,omitempty" jsonschema:"Scope delete to agent_id when set"`
 }
 
 type deleteMemoriesArgs struct {
@@ -62,12 +73,14 @@ type deleteAllMemoriesArgs struct {
 }
 
 type getArgs struct {
-	ID     string `json:"id" jsonschema:"Memory ID to fetch (required)"`
-	UserID string `json:"user_id,omitempty" jsonschema:"Scope fetch to user_id (defaults to MEMEX_USER_ID)"`
+	ID      string `json:"id" jsonschema:"Memory ID to fetch (required)"`
+	UserID  string `json:"user_id,omitempty" jsonschema:"Scope fetch to user_id (defaults to MEMEX_USER_ID)"`
+	AgentID string `json:"agent_id,omitempty" jsonschema:"Scope fetch to agent_id when set"`
 }
 
 type memoryHistoryArgs struct {
-	ID string `json:"id" jsonschema:"Memory ID to fetch history for (required)"`
+	ID     string `json:"id" jsonschema:"Memory ID to fetch history for (required)"`
+	UserID string `json:"user_id,omitempty" jsonschema:"Scope history to user_id (defaults to MEMEX_USER_ID)"`
 }
 
 // NewMCPServer registers memex memory tools on a tinymcp.TinyServer backed by store.
@@ -131,7 +144,12 @@ type toolHandlers struct {
 }
 
 func (h *toolHandlers) remember(ctx context.Context, _ *mcp.CallToolRequest, args rememberArgs) (*mcp.CallToolResult, any, error) {
-	opts := []RememberOption{WithUserID(args.UserID), WithMetadata(args.Metadata)}
+	opts := []RememberOption{
+		WithUserID(args.UserID),
+		WithAgentID(args.AgentID),
+		WithRunID(args.RunID),
+		WithMetadata(args.Metadata),
+	}
 	mem, err := h.store.Remember(ctx, args.Content, args.Tags, args.Type, opts...)
 	if err != nil {
 		return nil, nil, err
@@ -139,15 +157,24 @@ func (h *toolHandlers) remember(ctx context.Context, _ *mcp.CallToolRequest, arg
 	return tinymcp.TextResult(formatRemembered(mem)), nil, nil
 }
 
+func memoryFilterFromArgs(userID, agentID, runID, typ string, tags []string, metadata map[string]string, limit, offset int) MemoryFilter {
+	return MemoryFilter{
+		UserID:   userID,
+		AgentID:  agentID,
+		RunID:    runID,
+		Tags:     tags,
+		Type:     typ,
+		Metadata: metadata,
+		Limit:    limit,
+		Offset:   offset,
+	}
+}
+
 func (h *toolHandlers) recall(ctx context.Context, _ *mcp.CallToolRequest, args recallArgs) (*mcp.CallToolResult, any, error) {
 	limit, offset := clampLimitOffset(args.Limit, args.Offset)
-	memories, err := h.store.Search(ctx, args.Query, MemoryFilter{
-		UserID: args.UserID,
-		Tags:   args.Tags,
-		Type:   args.Type,
-		Limit:  limit,
-		Offset: offset,
-	})
+	memories, err := h.store.Search(ctx, args.Query, memoryFilterFromArgs(
+		args.UserID, args.AgentID, args.RunID, args.Type, args.Tags, args.Metadata, limit, offset,
+	))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -156,13 +183,9 @@ func (h *toolHandlers) recall(ctx context.Context, _ *mcp.CallToolRequest, args 
 
 func (h *toolHandlers) listMemories(ctx context.Context, _ *mcp.CallToolRequest, args listMemoriesArgs) (*mcp.CallToolResult, any, error) {
 	limit, offset := clampLimitOffset(args.Limit, args.Offset)
-	memories, err := h.store.List(ctx, MemoryFilter{
-		UserID: args.UserID,
-		Tags:   args.Tags,
-		Type:   args.Type,
-		Limit:  limit,
-		Offset: offset,
-	})
+	memories, err := h.store.List(ctx, memoryFilterFromArgs(
+		args.UserID, args.AgentID, args.RunID, args.Type, args.Tags, args.Metadata, limit, offset,
+	))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -170,7 +193,7 @@ func (h *toolHandlers) listMemories(ctx context.Context, _ *mcp.CallToolRequest,
 }
 
 func (h *toolHandlers) updateMemory(ctx context.Context, _ *mcp.CallToolRequest, args updateMemoryArgs) (*mcp.CallToolResult, any, error) {
-	mem, err := h.store.Update(ctx, args.ID, args.Content, args.Tags, args.Type, args.Metadata)
+	mem, err := h.store.Update(ctx, args.ID, args.Content, args.Tags, args.Type, args.Metadata, args.UserID, args.AgentID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -178,7 +201,7 @@ func (h *toolHandlers) updateMemory(ctx context.Context, _ *mcp.CallToolRequest,
 }
 
 func (h *toolHandlers) forget(ctx context.Context, _ *mcp.CallToolRequest, args forgetArgs) (*mcp.CallToolResult, any, error) {
-	if err := h.store.Forget(ctx, args.ID, args.UserID); err != nil {
+	if err := h.store.Forget(ctx, args.ID, args.UserID, args.AgentID); err != nil {
 		return nil, nil, err
 	}
 	return tinymcp.TextResult(fmt.Sprintf("Forgot memory %s.", args.ID)), nil, nil
@@ -204,7 +227,7 @@ func (h *toolHandlers) deleteAllMemories(ctx context.Context, _ *mcp.CallToolReq
 }
 
 func (h *toolHandlers) getMemory(ctx context.Context, _ *mcp.CallToolRequest, args getArgs) (*mcp.CallToolResult, any, error) {
-	mem, err := h.store.Get(ctx, args.ID, args.UserID)
+	mem, err := h.store.Get(ctx, args.ID, args.UserID, args.AgentID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -212,7 +235,7 @@ func (h *toolHandlers) getMemory(ctx context.Context, _ *mcp.CallToolRequest, ar
 }
 
 func (h *toolHandlers) memoryHistory(ctx context.Context, _ *mcp.CallToolRequest, args memoryHistoryArgs) (*mcp.CallToolResult, any, error) {
-	entries, err := h.store.History(ctx, args.ID)
+	entries, err := h.store.History(ctx, args.ID, args.UserID)
 	if err != nil {
 		return nil, nil, err
 	}

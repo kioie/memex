@@ -7,7 +7,10 @@ import (
 
 func TestFilterClausesSQLUsesBoundParameters(t *testing.T) {
 	args := []any{"user-1"}
-	sql := filterClausesSQL(MemoryFilter{Type: "note", Tags: []string{"go", `%evil%`}}, &args)
+	sql, err := filterClausesSQL(MemoryFilter{Type: "note", Tags: []string{"go", `%evil%`}}, &args, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(sql, clauseFilterMemoryType) || !strings.Contains(sql, clauseFilterTag) {
 		t.Fatalf("filter SQL = %q", sql)
 	}

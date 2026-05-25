@@ -24,6 +24,8 @@ func migrateStore(db *sql.DB) error {
 		"content_hash": "TEXT NOT NULL DEFAULT ''",
 		"metadata":     "TEXT NOT NULL DEFAULT '{}'",
 		"user_id":      "TEXT NOT NULL DEFAULT 'default'",
+		"agent_id":     "TEXT NOT NULL DEFAULT ''",
+		"run_id":       "TEXT NOT NULL DEFAULT ''",
 	}
 	for name, def := range columns {
 		exists, err := columnExists(db, "memories", name)
@@ -42,6 +44,9 @@ func migrateStore(db *sql.DB) error {
 	}
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_user_hash ON memories(user_id, content_hash)`); err != nil {
 		return fmt.Errorf("create dedup index: %w", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_user_agent ON memories(user_id, agent_id)`); err != nil {
+		return fmt.Errorf("create agent scope index: %w", err)
 	}
 	return nil
 }

@@ -53,28 +53,28 @@ func TestGetForgetValidationErrors(t *testing.T) {
 	store, ctx := openTestStore(t)
 
 	t.Run("get empty id", func(t *testing.T) {
-		_, err := store.Get(ctx, "", "")
+		_, err := store.Get(ctx, "", "", "")
 		if err == nil || !strings.Contains(err.Error(), "id is required") {
 			t.Fatalf("Get() error = %v", err)
 		}
 	})
 
 	t.Run("get unknown id", func(t *testing.T) {
-		_, err := store.Get(ctx, "00000000-0000-0000-0000-000000000000", "")
+		_, err := store.Get(ctx, "00000000-0000-0000-0000-000000000000", "", "")
 		if err == nil || !strings.Contains(err.Error(), "memory not found") {
 			t.Fatalf("Get() error = %v", err)
 		}
 	})
 
 	t.Run("forget empty id", func(t *testing.T) {
-		err := store.Forget(ctx, "  ", "")
+		err := store.Forget(ctx, "  ", "", "")
 		if err == nil || !strings.Contains(err.Error(), "id is required") {
 			t.Fatalf("Forget() error = %v", err)
 		}
 	})
 
 	t.Run("forget unknown id", func(t *testing.T) {
-		err := store.Forget(ctx, "00000000-0000-0000-0000-000000000000", "")
+		err := store.Forget(ctx, "00000000-0000-0000-0000-000000000000", "", "")
 		if err == nil || !strings.Contains(err.Error(), "memory not found") {
 			t.Fatalf("Forget() error = %v", err)
 		}
@@ -85,10 +85,10 @@ func TestGetForgetValidationErrors(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := store.Forget(ctx, mem.ID, ""); err != nil {
+		if err := store.Forget(ctx, mem.ID, "", ""); err != nil {
 			t.Fatal(err)
 		}
-		err = store.Forget(ctx, mem.ID, "")
+		err = store.Forget(ctx, mem.ID, "", "")
 		if err == nil || !strings.Contains(err.Error(), "memory not found") {
 			t.Fatalf("second Forget() error = %v", err)
 		}
@@ -122,14 +122,14 @@ func TestClosedStoreErrors(t *testing.T) {
 		{
 			name: "get",
 			run: func() error {
-				_, err := store.Get(ctx, "id", "")
+				_, err := store.Get(ctx, "id", "", "")
 				return err
 			},
 		},
 		{
 			name: "forget",
 			run: func() error {
-				return store.Forget(ctx, "id", "")
+				return store.Forget(ctx, "id", "", "")
 			},
 		},
 		{
@@ -161,10 +161,10 @@ func TestNilStoreErrors(t *testing.T) {
 	if _, err := store.Recall(ctx, "x", 5); err == nil {
 		t.Fatal("expected error on nil store Recall")
 	}
-	if _, err := store.Get(ctx, "id", ""); err == nil {
+	if _, err := store.Get(ctx, "id", "", ""); err == nil {
 		t.Fatal("expected error on nil store Get")
 	}
-	if err := store.Forget(ctx, "id", ""); err == nil {
+	if err := store.Forget(ctx, "id", "", ""); err == nil {
 		t.Fatal("expected error on nil store Forget")
 	}
 	if _, err := store.Stats(ctx); err == nil {
