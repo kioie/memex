@@ -12,7 +12,7 @@ import (
 
 func (s *Store) getByHashLocked(userID, hash string) (*Memory, error) {
 	row := s.db.QueryRow(`
-		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
+		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id, agent_id, run_id
 		FROM memories WHERE user_id = ? AND content_hash = ? LIMIT 1`, userID, hash)
 	mem, err := scanMemoryFull(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -21,8 +21,8 @@ func (s *Store) getByHashLocked(userID, hash string) (*Memory, error) {
 	return mem, err
 }
 
-// Update overwrites memory content (and optional tags/type/metadata). Recomputes content hash.
-func (s *Store) Update(_ context.Context, id string, content string, tags []string, memoryType string, metadata map[string]any) (*Memory, error) {
+// Update overwrites memory content scoped to userID (defaults to MEMEX_USER_ID).
+func (s *Store) Update(_ context.Context, id string, content string, tags []string, memoryType string, metadata map[string]any, userID, agentID string) (*Memory, error) {
 	if s == nil {
 		return nil, errStoreClosed
 	}
@@ -41,13 +41,13 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 		return nil, errStoreClosed
 	}
 
-	old, err := s.getLocked(id)
+	old, err := s.getLockedForUser(id, ResolveUserIDArg(userID), agentID)
 	if err != nil {
 		return nil, err
 	}
-	userID := old.UserID
-	if userID == "" {
-		userID = defaultUserID
+	scopeUserID := old.UserID
+	if scopeUserID == "" {
+		scopeUserID = defaultUserID
 	}
 	if memoryType == "" {
 		memoryType = old.Type
@@ -59,7 +59,7 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 		metadata = old.Metadata
 	}
 	now := time.Now().UTC()
-	hash := contentHash(userID, content)
+	hash := contentHash(scopeUserID, content)
 	tagsJSON, err := json.Marshal(normalizeTags(tags))
 	if err != nil {
 		return nil, err
@@ -69,11 +69,15 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 		return nil, err
 	}
 
-	res, err := s.db.Exec(`
+	query := `
 		UPDATE memories SET content = ?, tags = ?, memory_type = ?, updated_at = ?, content_hash = ?, metadata = ?
-		WHERE id = ? AND user_id = ?`,
-		content, string(tagsJSON), memoryType, now.Format(time.RFC3339Nano), hash, metaJSON, id, userID,
-	)
+		WHERE id = ? AND user_id = ?`
+	args := []any{content, string(tagsJSON), memoryType, now.Format(time.RFC3339Nano), hash, metaJSON, id, scopeUserID}
+	if a := ResolveAgentIDArg(agentID); a != "" {
+		query += clauseFilterAgentID
+		args = append(args, a)
+	}
+	res, err := s.db.Exec(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("update memory: %w", err)
 	}
@@ -81,7 +85,7 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 	if n == 0 {
 		return nil, fmt.Errorf("memory not found: %s", id)
 	}
-	if err := s.recordHistory(id, userID, historyUpdate, old.Content, content); err != nil {
+	if err := s.recordHistory(id, scopeUserID, historyUpdate, old.Content, content); err != nil {
 		return nil, fmt.Errorf("record history: %w", err)
 	}
 	return &Memory{
@@ -89,7 +93,9 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 		Content:   content,
 		Tags:      normalizeTags(tags),
 		Type:      memoryType,
-		UserID:    userID,
+		UserID:    scopeUserID,
+		AgentID:   old.AgentID,
+		RunID:     old.RunID,
 		Metadata:  metadata,
 		CreatedAt: old.CreatedAt,
 		UpdatedAt: now,
@@ -97,14 +103,20 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 }
 
 func (s *Store) getLocked(id string) (*Memory, error) {
-	return s.getLockedForUser(id, "")
+	return s.getLockedForUser(id, "", "")
 }
 
-func (s *Store) getLockedForUser(id, userID string) (*Memory, error) {
+func (s *Store) getLockedForUser(id, userID, agentID string) (*Memory, error) {
 	if userID != "" {
-		row := s.db.QueryRow(`
-			SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
-			FROM memories WHERE id = ? AND user_id = ?`, id, userID)
+		query := `
+			SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id, agent_id, run_id
+			FROM memories WHERE id = ? AND user_id = ?`
+		args := []any{id, userID}
+		if a := ResolveAgentIDArg(agentID); a != "" {
+			query += clauseFilterAgentID
+			args = append(args, a)
+		}
+		row := s.db.QueryRow(query, args...)
 		mem, err := scanMemoryFull(row)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("memory not found: %s", id)
@@ -112,7 +124,7 @@ func (s *Store) getLockedForUser(id, userID string) (*Memory, error) {
 		return mem, err
 	}
 	row := s.db.QueryRow(`
-		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
+		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id, agent_id, run_id
 		FROM memories WHERE id = ?`, id)
 	mem, err := scanMemoryFull(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -132,7 +144,10 @@ func (s *Store) List(_ context.Context, filter MemoryFilter) ([]Memory, error) {
 	}
 	offset := max(0, filter.Offset)
 
-	sqlText, args := listMemoriesSQL(filter, limit, offset)
+	sqlText, args, err := listMemoriesSQL(filter, limit, offset)
+	if err != nil {
+		return nil, err
+	}
 
 	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {

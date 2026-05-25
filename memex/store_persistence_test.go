@@ -38,7 +38,7 @@ func TestStorePersistsAcrossReopen(t *testing.T) {
 		t.Fatalf("unexpected path %q", store.Path())
 	}
 
-	got, err := store.Get(ctx, id, "")
+	got, err := store.Get(ctx, id, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

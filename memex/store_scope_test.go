@@ -16,24 +16,24 @@ func TestGetForgetScopedByUserID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := store.Get(ctx, aliceMem.ID, "bob"); err == nil || !strings.Contains(err.Error(), "memory not found") {
+	if _, err := store.Get(ctx, aliceMem.ID, "bob", ""); err == nil || !strings.Contains(err.Error(), "memory not found") {
 		t.Fatalf("bob reading alice memory = %v", err)
 	}
-	if err := store.Forget(ctx, aliceMem.ID, "bob"); err == nil || !strings.Contains(err.Error(), "memory not found") {
+	if err := store.Forget(ctx, aliceMem.ID, "bob", ""); err == nil || !strings.Contains(err.Error(), "memory not found") {
 		t.Fatalf("bob deleting alice memory = %v", err)
 	}
 
-	got, err := store.Get(ctx, aliceMem.ID, "alice")
+	got, err := store.Get(ctx, aliceMem.ID, "alice", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.Content != "alice secret" {
 		t.Fatalf("alice get = %+v", got)
 	}
-	if err := store.Forget(ctx, aliceMem.ID, "alice"); err != nil {
+	if err := store.Forget(ctx, aliceMem.ID, "alice", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Get(ctx, aliceMem.ID, "alice"); err == nil {
+	if _, err := store.Get(ctx, aliceMem.ID, "alice", ""); err == nil {
 		t.Fatal("expected memory gone after scoped forget")
 	}
 }
@@ -54,7 +54,7 @@ func TestUpdateRejectsOversizedContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	tooLong := strings.Repeat("y", maxMemoryContentLen+1)
-	_, err = store.Update(ctx, mem.ID, tooLong, nil, "", nil)
+	_, err = store.Update(ctx, mem.ID, tooLong, nil, "", nil, "", "")
 	if err == nil || !strings.Contains(err.Error(), "maximum length") {
 		t.Fatalf("Update() error = %v", err)
 	}

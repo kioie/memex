@@ -14,7 +14,7 @@ func TestRememberStoresAllFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := store.Get(ctx, mem.ID, "")
+	got, err := store.Get(ctx, mem.ID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestForgetRemovesFromSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Forget(ctx, mem.ID, ""); err != nil {
+	if err := store.Forget(ctx, mem.ID, "", ""); err != nil {
 		t.Fatal(err)
 	}
 	results, err := store.Recall(ctx, "unique-token-for-deletion", 10)
@@ -174,7 +174,7 @@ func TestLargeContentStorage(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Remember %d bytes: %v", size, err)
 			}
-			got, err := store.Get(ctx, mem.ID, "")
+			got, err := store.Get(ctx, mem.ID, "", "")
 			if err != nil {
 				t.Fatal(err)
 			}

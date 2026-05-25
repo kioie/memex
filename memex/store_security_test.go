@@ -42,7 +42,7 @@ func TestRememberWithSpecialContent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Remember(%q): %v", tc.content, err)
 		}
-		got, err := store.Get(ctx, mem.ID, "")
+		got, err := store.Get(ctx, mem.ID, "", "")
 		if err != nil {
 			t.Fatal(err)
 		}

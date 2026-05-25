@@ -32,14 +32,14 @@ func TestUpdateMemoryAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := store.Update(ctx, mem.ID, "v2", []string{"y"}, "decision", map[string]any{"source": "test"})
+	updated, err := store.Update(ctx, mem.ID, "v2", []string{"y"}, "decision", map[string]any{"source": "test"}, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if updated.Content != "v2" || updated.Type != "decision" {
 		t.Fatalf("update = %+v", updated)
 	}
-	hist, err := store.History(ctx, mem.ID)
+	hist, err := store.History(ctx, mem.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}

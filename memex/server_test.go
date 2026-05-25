@@ -69,7 +69,7 @@ func TestMem0ToolHandlers(t *testing.T) {
 	}
 
 	updateRes, _, err := h.updateMemory(ctx, nil, updateMemoryArgs{
-		ID: id, Content: "Prefers light mode", Tags: []string{"ui"}, Type: "preference",
+		ID: id, Content: "Prefers light mode", Tags: []string{"ui"}, Type: "preference", UserID: "alice",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestMem0ToolHandlers(t *testing.T) {
 		t.Fatalf("update_memory = %q", textFromResult(updateRes))
 	}
 
-	histRes, _, err := h.memoryHistory(ctx, nil, memoryHistoryArgs{ID: id})
+	histRes, _, err := h.memoryHistory(ctx, nil, memoryHistoryArgs{ID: id, UserID: "alice"})
 	if err != nil {
 		t.Fatal(err)
 	}
