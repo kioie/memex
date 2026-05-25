@@ -4,10 +4,10 @@ Local-first memory with **accurate recall under a token budget**, **append-only 
 
 ## Current baseline
 
-| Area | Status (v0.4.0 / Phase 4) |
+| Area | Status (v0.5.0 / Phase 5) |
 |------|---------------------------|
 | Scoping | `user_id`, `agent_id`, `run_id`; scoped get/forget/update/history; 256 KiB cap |
-| Retrieval | FTS5 + BM25; active-only by default; `recall` requires query; `retrieve_context` token budget |
+| Retrieval | Hybrid FTS + entity boost + optional vectors (`MEMEX_HYBRID=1`); RRF fusion; `retrieve_context` token budget |
 | Writes | Hash dedup; `update_memory` supersedes (new row); soft-delete via `valid_to` |
 | History | `memory_history` audit + `memory_events` append-only log |
 | Agent facts | First-class `source` (`user`/`agent`/`system`); commitment types; agent-type default source |
@@ -16,7 +16,7 @@ Local-first memory with **accurate recall under a token budget**, **append-only 
 ## Target architecture
 
 ```
-Write:  MCP remember → validate → append row → FTS + (future: entities/vectors)
+Write:  MCP remember → validate → append row → FTS + entities + (optional: vectors)
 Read:   recall / retrieve_context → token budget → hybrid rank → JSON output
 ```
 
@@ -75,13 +75,15 @@ Read:   recall / retrieve_context → token budget → hybrid rank → JSON outp
 
 **Branch:** `kioie/v04-phase4-retrieve-context`
 
-## Phase 5 — Multi-signal retrieval
+## Phase 5 — Multi-signal retrieval ✅ (v0.5.0)
 
 **Goal:** Fuse keyword + entity + (optional) semantic signals locally.
 
-- Entity extraction table + query boost
-- Optional `sqlite-vec` behind `MEMEX_HYBRID=1`
-- Reciprocal rank fusion before token packing
+- [x] Entity extraction table + query boost
+- [x] Optional local vector retrieval behind `MEMEX_HYBRID=1`
+- [x] Reciprocal rank fusion before token packing
+
+**Branch:** `kioie/v05-phase5-hybrid-retrieval`
 
 ---
 

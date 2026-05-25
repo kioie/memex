@@ -184,6 +184,9 @@ func (s *Store) supersedeLocked(id string, in UpdateInput) (*Memory, error) {
 	if err := s.recordEvent(newID, payload.scopeUserID, eventAdd, id, payload.content); err != nil {
 		return nil, fmt.Errorf("record event: %w", err)
 	}
+	if err := s.indexMemoryRetrievalLocked(mem, payload.tags); err != nil {
+		return nil, fmt.Errorf("index retrieval signals: %w", err)
+	}
 	return mem, nil
 }
 
