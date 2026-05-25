@@ -1,6 +1,7 @@
 package memex
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -105,27 +106,13 @@ func mergeRRFScores(lists [][]string) map[string]float64 {
 	return scores
 }
 
-func entityInClause(n int) (string, error) {
-	if n <= 0 {
-		return "", fmt.Errorf("entity filter requires at least one entity")
-	}
-	if n > maxQueryEntities {
-		return "", fmt.Errorf("too many entities in query (max %d)", maxQueryEntities)
-	}
-	parts := make([]string, n)
-	for i := range parts {
-		parts[i] = "?"
-	}
-	return strings.Join(parts, ", "), nil
-}
-
-const sqlEntitySearchSelect = `
+const sqlEntitySearchBase = `
 		SELECT m.id, m.content, m.tags, m.memory_type, m.created_at, m.updated_at,
 		       COUNT(e.entity) AS score, '' AS highlights,
 		       m.metadata, m.user_id, m.agent_id, m.run_id, m.supersedes_id, m.valid_to, m.source
 		FROM memory_entities e
 		JOIN memories m ON m.id = e.memory_id
-		WHERE e.user_id = ? AND m.user_id = ? AND e.entity IN (`
+		WHERE e.user_id = ? AND m.user_id = ? AND e.entity IN (SELECT value FROM json_each(?))`
 
 func (s *Store) searchEntities(userID string, entities []string, filter MemoryFilter, limit int) ([]Memory, error) {
 	if len(entities) == 0 {
@@ -134,19 +121,16 @@ func (s *Store) searchEntities(userID string, entities []string, filter MemoryFi
 	if len(entities) > maxQueryEntities {
 		entities = entities[:maxQueryEntities]
 	}
-	inClause, err := entityInClause(len(entities))
+	entitiesJSON, err := json.Marshal(entities)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encode entity filter: %w", err)
 	}
-	args := []any{userID, userID}
-	for _, entity := range entities {
-		args = append(args, entity)
-	}
+	args := []any{userID, userID, string(entitiesJSON)}
 	filterSQL, err := filterClausesSQL(filter, &args, "m.")
 	if err != nil {
 		return nil, err
 	}
-	query := sqlEntitySearchSelect + inClause + `)` + filterSQL + `
+	query := sqlEntitySearchBase + filterSQL + `
 		GROUP BY m.id
 		ORDER BY score DESC
 		LIMIT ?`

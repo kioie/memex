@@ -247,27 +247,44 @@ func backfillMemoryEntities(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	type memoryRow struct {
+		id, content, tagsJSON, userID string
+	}
+	var pending []memoryRow
 	for rows.Next() {
-		var id, content, tagsJSON, userID string
-		if err := rows.Scan(&id, &content, &tagsJSON, &userID); err != nil {
+		var row memoryRow
+		if err := rows.Scan(&row.id, &row.content, &row.tagsJSON, &row.userID); err != nil {
+			rows.Close()
 			return err
 		}
+		pending = append(pending, row)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, row := range pending {
 		var tags []string
-		if tagsJSON != "" {
-			if err := json.Unmarshal([]byte(tagsJSON), &tags); err != nil {
+		if row.tagsJSON != "" {
+			if err := json.Unmarshal([]byte(row.tagsJSON), &tags); err != nil {
 				return fmt.Errorf("decode tags: %w", err)
 			}
 		}
-		entities := extractEntities(content, tags)
-		if _, err := db.Exec(sqlDeleteMemoryEntities, id); err != nil {
+		userID := row.userID
+		if userID == "" {
+			userID = defaultUserID
+		}
+		entities := extractEntities(row.content, tags)
+		if _, err := db.Exec(sqlDeleteMemoryEntities, row.id); err != nil {
 			return err
 		}
 		for _, entity := range entities {
-			if _, err := db.Exec(sqlInsertMemoryEntity, id, userID, entity); err != nil {
+			if _, err := db.Exec(sqlInsertMemoryEntity, row.id, userID, entity); err != nil {
 				return err
 			}
 		}
 	}
-	return rows.Err()
+	return nil
 }
