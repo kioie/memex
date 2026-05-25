@@ -1,26 +1,36 @@
 # memex
 
-**Memory extender for AI agents** — local-first, MCP-native, zero config. **v0.6.0**
+**Long-term memory for your AI coding agent — stored on your machine.**
 
-Inspired by [Vannevar Bush's memex](https://en.wikipedia.org/wiki/Memex): a device for storing and linking knowledge. This project gives coding agents and LLM clients durable memory across sessions — no API keys, no cloud, no vector DB setup.
+memex gives Cursor, Claude Desktop, and other MCP clients a memory that survives across chats. Save preferences, decisions, and facts once; the agent finds them again later. No cloud account, no API keys, no vector database to run.
 
 [![Unit Tests](https://github.com/kioie/memex/actions/workflows/unit.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/unit.yml)
 [![Integration Tests](https://github.com/kioie/memex/actions/workflows/integration.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/integration.yml)
-[![SonarQube](https://github.com/kioie/memex/actions/workflows/sonar.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/sonar.yml)
-[![CodeQL](https://github.com/kioie/memex/actions/workflows/codeql.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/codeql.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/kioie/memex/memex.svg)](https://pkg.go.dev/github.com/kioie/memex/memex)
 
-**Requirements:** Go 1.26+
+**Current release:** v0.6.0 · **Requires:** Go 1.26+
 
 ---
 
-## Quick start
+## The outcome
+
+| Without memex | With memex |
+|---------------|------------|
+| Every new chat starts from zero | Agent recalls your stack, style, and past decisions |
+| You repeat the same preferences | You say it once; memex stores it locally |
+| Memory lives in a vendor's cloud | Memory lives in `~/.memex/memex.db` on your disk |
+| Extra services and API keys | `go install` + one MCP config line |
+
+---
+
+## Try it in 2 minutes
 
 ```bash
 go install github.com/kioie/memex/cmd/memex@latest
+memex doctor    # confirm local store is ready
 ```
 
-Add to Cursor, Claude Desktop, or any MCP client:
+Add to your MCP client (e.g. Cursor):
 
 ```json
 {
@@ -33,117 +43,122 @@ Add to Cursor, Claude Desktop, or any MCP client:
 }
 ```
 
-Then tell your agent:
+In chat:
 
 > Remember that I prefer table-driven tests and Go over Python.
 
-Start a new chat later:
+Open a **new chat**:
 
 > What are my testing preferences?
 
-For bounded context injection, use `retrieve_context` with a token budget instead of dumping full recall results.
-
-MCP clients can fetch **`memory_guide`**, **`session_start`**, and **`remember_fact`** prompts from the server for writing conventions. Run **`memex doctor`** to inspect the local store path, schema, and memory counts.
-
-See [examples/](examples/) for Cursor configs and multi-agent scoping patterns.
+**Full walkthrough:** [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)
 
 ---
 
-## What you get (v0.6.0)
+## How it works
 
-| Capability | memex |
-|------------|-------|
-| **Hybrid retrieval** | FTS5 + BM25, entity boost, optional local vectors — fused with reciprocal rank fusion |
-| **Token budget** | `retrieve_context` packs ranked hits into a configurable `max_tokens` ceiling |
-| **Append-only facts** | `update_memory` supersedes (new row); soft-delete preserves audit trail |
-| **Agent facts** | First-class `source` (`user` / `agent` / `system`) and commitment-style types |
-| **Strong scoping** | `user_id`, `agent_id`, `run_id`, metadata filters — scoped CRUD and history |
-| **Agent prompts** | MCP prompts: `memory_guide`, `session_start`, `remember_fact` |
-| **Operator CLI** | `memex doctor` — path, schema, counts, hybrid flag, env defaults |
-| **Fully local** | SQLite + FTS5 on disk; optional semantic signal via `MEMEX_HYBRID=1` — no cloud LLM or embeddings API |
+```
+You or the agent          memex (local)              Later sessions
+      │                        │                           │
+      │  remember("prefers Go")│                           │
+      │ ──────────────────────►│  saved to SQLite          │
+      │                        │                           │
+      │                        │  recall("testing prefs")  │
+      │                        │ ◄─────────────────────────│
+      │                        │ ─────────────────────────►│ relevant facts
+```
 
-See [examples/](examples/) for Cursor MCP configs and scoping recipes.
+1. **Save** — `remember` stores a short fact (deduplicated per user)
+2. **Find** — `recall` or `retrieve_context` searches when the agent needs context
+3. **Update** — `update_memory` revises a fact; old versions stay in the audit trail
 
----
-
-## MCP tools
-
-| Tool | Description |
-|------|-------------|
-| `remember` | Store a fact (hash dedup per user; optional tags, type, source, metadata, agent/run scope) |
-| `recall` | Keyword search (FTS5 + hybrid fusion); **query required** — use `list_memories` to browse |
-| `retrieve_context` | Ranked search packed within `max_tokens` (greedy; hybrid fusion before packing) |
-| `list_memories` | Filtered, paginated browse without a search query |
-| `update_memory` | Supersede an active memory (closes old row, returns new ID) |
-| `get_memory` | Fetch one memory by exact ID (scoped) |
-| `forget` | Soft-delete one memory (`valid_to` set; row kept for audit) |
-| `delete_memories` | Batch soft-delete by IDs |
-| `delete_all_memories` | Wipe user scope (requires `confirm=true`) |
-| `memory_history` | ADD / supersede / delete audit trail for a memory |
-
-See [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP-v0.3.md](docs/ROADMAP-v0.3.md) for release history and future work.
+Data never leaves your machine unless you copy the database file.
 
 ---
 
-## MCP prompts
+## What you get
 
-| Prompt | Purpose |
-|--------|---------|
-| `memory_guide` | When to remember, tool choice, types/source, scoping — fetch at session start |
-| `session_start` | Checklist to load preferences via `retrieve_context`; optional `run_id` arg |
-| `remember_fact` | Distill a `draft` into an atomic fact before calling `remember` |
-
-Memory types include `note`, `preference`, `decision`, `fact`, `procedure`, plus agent-oriented types: `commitment`, `recommendation`, `action_taken`.
+| Feature | What it means for you |
+|---------|------------------------|
+| **Local storage** | SQLite file under `~/.memex` — you own it |
+| **Smart search** | Keyword search built in; optional `MEMEX_HYBRID=1` for paraphrase-friendly matching |
+| **Context limits** | `retrieve_context` returns only what fits your token budget |
+| **Safe updates** | Revising a fact keeps history; nothing is silently overwritten |
+| **Agent + user facts** | Track who said what (`source`: user / agent / system) |
+| **Multi-project scoping** | Separate by user, agent, session, or metadata tags |
+| **Built-in guidance** | MCP prompts teach agents when and how to use memory |
+| **Health check** | `memex doctor` shows path, counts, and config |
 
 ---
 
-## Environment
+## Documentation
+
+| Doc | For |
+|-----|-----|
+| [Getting started](docs/GETTING-STARTED.md) | First-time setup in Cursor |
+| [For AI agents](docs/FOR-AGENTS.md) | When agents should read/write memory |
+| [Examples](examples/) | MCP configs and scoping recipes |
+| [All docs](docs/README.md) | Index |
+
+**Agents:** fetch MCP prompts `memory_guide`, `session_start`, and `remember_fact` from the connected server.
+
+---
+
+## Tools (10)
+
+Everyday use — you usually only need the first three:
+
+| Tool | Plain English |
+|------|---------------|
+| `remember` | Save a fact |
+| `retrieve_context` | Find relevant facts, sized for the model context window |
+| `recall` | Search by keywords (query required) |
+| `list_memories` | Browse stored facts without searching |
+| `update_memory` | Change an existing fact (keeps history) |
+| `get_memory` | Look up one fact by ID |
+| `forget` | Remove one fact (soft delete) |
+| `delete_memories` | Remove several facts |
+| `delete_all_memories` | Wipe a user's memories (`confirm=true`) |
+| `memory_history` | See how a fact changed over time |
+
+---
+
+## Settings
 
 | Variable | Purpose |
 |----------|---------|
-| `MEMEX_DIR` | Data directory (default `~/.memex`, database at `memex.db`) |
-| `MEMEX_USER_ID` | Default user scope (default `default`) |
-| `MEMEX_AGENT_ID` | Default agent scope when tool args omit `agent_id` |
-| `MEMEX_RUN_ID` | Default run/session tag when tool args omit `run_id` |
-| `MEMEX_HYBRID=1` | Enable local vector retrieval (deterministic embeddings, fused with keyword + entity signals) |
-| `MEMEX_VERBOSE=1` | Log database path to stderr (stdio reserved for MCP) |
+| `MEMEX_DIR` | Where to store data (default `~/.memex`) |
+| `MEMEX_USER_ID` | Your memory namespace (default `default`) |
+| `MEMEX_AGENT_ID` | Separate memories per agent |
+| `MEMEX_RUN_ID` | Tag memories to a session or run |
+| `MEMEX_HYBRID=1` | Turn on extra local matching for paraphrases |
+| `MEMEX_VERBOSE=1` | Log database path while debugging |
 
 ---
 
 ## Why memex?
 
-Most agent memory products assume a hosted stack: API keys, cloud embeddings, and network round-trips on every recall. memex inverts that — the MCP server *is* the product, and your machine owns the data.
+Hosted memory products typically need API keys, cloud embeddings, and network calls on every recall. memex is the opposite: a small MCP server on your machine, writing distilled facts that **agents** choose to store — no extraction pipeline, no vendor lock-in.
 
 | | memex | Typical hosted memory |
-|---|---|---|
-| **Setup** | `go install`, one MCP config line | API keys, SDK, often Docker |
-| **Data residency** | Local SQLite on your machine | Vendor cloud |
-| **Recall path** | On-disk FTS + optional local vectors | Remote API + embedding service |
-| **Token discipline** | Built-in `retrieve_context` budget | Often returns unbounded JSON |
-| **Fact lifecycle** | Append-only supersession + soft-delete audit | In-place UPDATE/DELETE |
-| **Agent scoping** | `user_id` / `agent_id` / `run_id` / `source` | Varies; often single-tenant |
-| **MCP-native** | First-class tools with clear browse vs search split | Wrapper around REST or proprietary SDK |
-| **Dependencies** | Go + SQLite (stdlib-style local stack) | Vector DB, LLM pipeline, or both |
-
-memex deliberately does **not** run an LLM extraction pipeline or call cloud embedding APIs — agents write distilled facts directly, which keeps latency predictable and avoids vendor lock-in.
+|---|-------|----------------------|
+| Setup | `go install` + MCP config | API keys, SDK, often Docker |
+| Data | Your disk | Vendor cloud |
+| Offline | Yes | Usually no |
+| Cost | Free (local compute only) | Usage-based |
 
 ---
 
 ## Development
 
 ```bash
-git clone https://github.com/kioie/memex.git
-cd memex
-make test              # fast unit suite (race + -short)
-make test-integration  # MCP stdio subprocess roundtrip
-make test-full         # scale tests (1k–5k rows, large payloads)
-go run ./cmd/memex serve
-memex doctor           # inspect local store health
+git clone https://github.com/kioie/memex.git && cd memex
+make test              # fast unit tests
+make test-integration  # MCP stdio roundtrip
+memex doctor
 ```
 
-Layer split: `memex/store.go` owns SQLite + FTS; `memex/server.go` registers tools via `tinymcp.RegisterTool` and serves over stdio (`server.Start`). Roundtrip tests use `server.RawServer()` for in-memory transport; integration tests spawn the CLI subprocess.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full test tier breakdown and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
+See [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md) · [SECURITY.md](SECURITY.md)
 
 ---
 

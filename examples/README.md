@@ -1,42 +1,37 @@
-# memex examples
+# Examples
 
-Copy-paste recipes for wiring memex into agents and MCP clients.
+Copy-paste configs and patterns. Start with [Getting started](../docs/GETTING-STARTED.md) if this is your first install.
 
-## Layout
+## MCP configs (Cursor / Claude Desktop)
 
-| Path | Purpose |
-|------|---------|
-| [cursor/mcp.json](cursor/mcp.json) | Minimal Cursor MCP config (stdio) |
-| [cursor/hybrid-mcp.json](cursor/hybrid-mcp.json) | Same with `MEMEX_HYBRID=1` for local semantic fusion |
-| [scoping/README.md](scoping/README.md) | Multi-agent `user_id` / `agent_id` / `run_id` patterns |
+| File | Use when |
+|------|----------|
+| [cursor/mcp.json](cursor/mcp.json) | Default — keyword search, zero extra env |
+| [cursor/hybrid-mcp.json](cursor/hybrid-mcp.json) | You want better recall when wording doesn't match exactly (`MEMEX_HYBRID=1`) |
+| [mcp-config.json](mcp-config.json) | Minimal snippet (same as cursor default) |
 
-## MCP prompts (v0.6+)
+Merge the `mcpServers` block into your client's MCP settings file.
 
-Clients that support MCP prompts can fetch built-in guidance from the running server:
+## Guides
 
-| Prompt | When to use |
-|--------|-------------|
-| `memory_guide` | Conventions for remember vs recall vs retrieve_context; types, scoping, anti-patterns |
-| `session_start` | Start-of-session checklist; optional `run_id` argument |
-| `remember_fact` | Distill draft text before calling `remember` (requires `draft`) |
+| Guide | Topic |
+|-------|-------|
+| [scoping/README.md](scoping/README.md) | One user, multiple agents, session tags, metadata filters |
 
-In Cursor, prompts appear when the memex MCP server is connected — use them at session start or when unsure whether to persist a fact.
+## MCP prompts (built into the server)
 
-## CLI doctor
+Available when memex is connected — no extra config:
 
-Verify the local store before debugging agent memory issues:
+| Prompt | When |
+|--------|------|
+| `memory_guide` | Agent needs rules for save vs search vs skip |
+| `session_start` | Beginning of a coding session |
+| `remember_fact` | Turn rough notes into a clean `remember` call |
+
+Human-readable version: [docs/FOR-AGENTS.md](../docs/FOR-AGENTS.md)
+
+## Verify install
 
 ```bash
 memex doctor
 ```
-
-Reports version, schema generation, database path, active memory counts, hybrid mode, and effective env defaults.
-
-## Quick start
-
-```bash
-go install github.com/kioie/memex/cmd/memex@latest
-memex doctor
-```
-
-Then add [cursor/mcp.json](cursor/mcp.json) to your Cursor MCP settings (merge into `mcpServers`).

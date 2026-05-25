@@ -1,6 +1,20 @@
 # Multi-agent scoping
 
-memex partitions memory with `user_id`, optional `agent_id`, and optional `run_id`. Use env defaults in MCP config so tools inherit scope without repeating arguments.
+Keep memories organized when more than one person, agent, or project shares a machine.
+
+**Three levers:**
+
+| Setting | Separates |
+|---------|-----------|
+| `MEMEX_USER_ID` | People or tenants (required boundary) |
+| `MEMEX_AGENT_ID` | Different agents for the same person |
+| `MEMEX_RUN_ID` | One chat session or CI run |
+
+Set them in MCP config `env` so every tool call inherits the scope automatically.
+
+See also: [For AI agents](../../docs/FOR-AGENTS.md)
+
+---
 
 ## Single user, single agent (default)
 
