@@ -14,7 +14,7 @@ func TestRememberStoresAllFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := store.Get(ctx, mem.ID)
+	got, err := store.Get(ctx, mem.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestForgetRemovesFromSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Forget(ctx, mem.ID); err != nil {
+	if err := store.Forget(ctx, mem.ID, ""); err != nil {
 		t.Fatal(err)
 	}
 	results, err := store.Recall(ctx, "unique-token-for-deletion", 10)
@@ -162,7 +162,7 @@ func TestRecallLimitDefaultsAndBounds(t *testing.T) {
 func TestLargeContentStorage(t *testing.T) {
 	sizes := []int{1 << 10, 64 << 10} // 1 KiB, 64 KiB
 	if !testing.Short() {
-		sizes = append(sizes, 1<<20) // 1 MiB when not -short
+		sizes = append(sizes, maxMemoryContentLen) // cap boundary when not -short
 	}
 
 	for _, size := range sizes {
@@ -174,7 +174,7 @@ func TestLargeContentStorage(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Remember %d bytes: %v", size, err)
 			}
-			got, err := store.Get(ctx, mem.ID)
+			got, err := store.Get(ctx, mem.ID, "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -194,8 +194,8 @@ func TestLargeContentStorage(t *testing.T) {
 
 func formatSize(n int) string {
 	switch {
-	case n >= 1<<20:
-		return "1MiB"
+	case n >= 256<<10:
+		return "256KiB"
 	case n >= 64<<10:
 		return "64KiB"
 	default:

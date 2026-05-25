@@ -31,8 +31,8 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 		return nil, err
 	}
 	content = strings.TrimSpace(content)
-	if content == "" {
-		return nil, errors.New("content is required")
+	if err := validateContent(content); err != nil {
+		return nil, err
 	}
 
 	s.writeMu.Lock()
@@ -97,6 +97,20 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 }
 
 func (s *Store) getLocked(id string) (*Memory, error) {
+	return s.getLockedForUser(id, "")
+}
+
+func (s *Store) getLockedForUser(id, userID string) (*Memory, error) {
+	if userID != "" {
+		row := s.db.QueryRow(`
+			SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
+			FROM memories WHERE id = ? AND user_id = ?`, id, userID)
+		mem, err := scanMemoryFull(row)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("memory not found: %s", id)
+		}
+		return mem, err
+	}
 	row := s.db.QueryRow(`
 		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
 		FROM memories WHERE id = ?`, id)

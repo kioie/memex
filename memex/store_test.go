@@ -22,7 +22,7 @@ func TestStoreRememberRecallForget(t *testing.T) {
 		t.Fatal("expected id")
 	}
 
-	got, err := store.Get(ctx, mem.ID)
+	got, err := store.Get(ctx, mem.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,10 +41,10 @@ func TestStoreRememberRecallForget(t *testing.T) {
 		t.Fatalf("expected id %s, got %s", mem.ID, results[0].ID)
 	}
 
-	if err := store.Forget(ctx, mem.ID); err != nil {
+	if err := store.Forget(ctx, mem.ID, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Get(ctx, mem.ID); err == nil {
+	if _, err := store.Get(ctx, mem.ID, ""); err == nil {
 		t.Fatal("expected error after forget")
 	}
 }
