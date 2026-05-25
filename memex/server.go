@@ -159,6 +159,9 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 		h.memoryHistory); err != nil {
 		return nil, err
 	}
+	if err := registerMemoryPrompts(s); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 

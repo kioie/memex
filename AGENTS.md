@@ -17,12 +17,15 @@ Guidance for AI coding agents working in this repository.
 - **Build CLI**: `make build` → `bin/memex`
 - **Install**: `make install` or `go install ./cmd/memex`
 - **Run MCP server**: `go run ./cmd/memex serve` (stdio; for local MCP clients)
+- **Doctor**: `memex doctor` — store path, schema version, memory counts, hybrid flag
 
 ## Layout
 
 - `memex/` — importable library (`github.com/kioie/memex/memex`): SQLite store + MCP tool registration
 - `memex/version.go` — single `Version` constant (library, MCP server, CLI)
-- `cmd/memex/` — CLI (`memex serve` → `NewMCPServer` + `tinymcp` stdio)
+- `memex/prompts.go` — MCP prompts for agent memory conventions
+- `cmd/memex/` — CLI (`memex serve`, `memex doctor` → tinymcp stdio)
+- `examples/` — Cursor MCP configs and scoping cookbook
 - `integration/` — MCP stdio subprocess tests (`//go:build integration`)
 
 ## MCP layer
@@ -32,6 +35,7 @@ Guidance for AI coding agents working in this repository.
 | Store / FTS | `memex/store.go` | No MCP imports |
 | Hybrid / entities | `memex/store_hybrid.go`, `store_entities.go`, `store_embed.go` | RRF fusion; `MEMEX_HYBRID=1` |
 | Tool handlers | `memex/server.go` | `tinymcp.RegisterTool`, `tinymcp.TextResult` |
+| MCP prompts | `memex/prompts.go` | `memory_guide`, `session_start`, `remember_fact` |
 | Stdio serve | `cmd/memex/main.go` | `server.Start()` from tinymcp |
 | In-memory tests | `mcp_roundtrip_test.go` | `server.RawServer().Connect(...)` |
 | Subprocess tests | `integration/mcp_stdio_test.go` | Full CLI + stdio path |
@@ -86,7 +90,7 @@ Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when
 | `mcp_roundtrip_test.go` | In-memory MCP client ↔ server tool roundtrip |
 | `server_test.go` | MCP recall cap (50), error propagation, format helpers |
 
-Integration (`integration/mcp_stdio_test.go`): real subprocess `memex serve` over stdio — remember/recall, `retrieve_context`, hybrid mode, supersession.
+Integration (`integration/mcp_stdio_test.go`): real subprocess `memex serve` over stdio — remember/recall, `retrieve_context`, hybrid mode, supersession, MCP prompts.
 
 ## CI workflows
 

@@ -19,9 +19,26 @@ func TestCLIVersion(t *testing.T) {
 
 func TestCLIHelp(t *testing.T) {
 	out := runCLI(t, "help")
-	for _, want := range []string{"memex", "serve", "MEMEX_DIR"} {
+	for _, want := range []string{"memex", "serve", "doctor", "MEMEX_DIR"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("help missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestCLIDoctor(t *testing.T) {
+	dir := t.TempDir()
+	bin := buildCLIBinary(t)
+	cmd := exec.Command(bin, "doctor")
+	cmd.Env = append(os.Environ(), "MEMEX_DIR="+dir)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("memex doctor: %v\n%s", err, out)
+	}
+	text := string(out)
+	for _, want := range []string{"memex doctor", "schema:", "database:", "status:      ok"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("doctor output missing %q:\n%s", want, text)
 		}
 	}
 }
