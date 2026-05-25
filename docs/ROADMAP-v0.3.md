@@ -4,10 +4,10 @@ Local-first memory with **accurate recall under a token budget**, **append-only 
 
 ## Current baseline
 
-| Area | Status (v0.3.2 / Phase 3) |
+| Area | Status (v0.4.0 / Phase 4) |
 |------|---------------------------|
 | Scoping | `user_id`, `agent_id`, `run_id`; scoped get/forget/update/history; 256 KiB cap |
-| Retrieval | FTS5 + BM25; active-only by default; optional `include_inactive`; filter by `source` |
+| Retrieval | FTS5 + BM25; active-only by default; `recall` requires query; `retrieve_context` token budget |
 | Writes | Hash dedup; `update_memory` supersedes (new row); soft-delete via `valid_to` |
 | History | `memory_history` audit + `memory_events` append-only log |
 | Agent facts | First-class `source` (`user`/`agent`/`system`); commitment types; agent-type default source |
@@ -65,13 +65,15 @@ Read:   recall / retrieve_context → token budget → hybrid rank → JSON outp
 
 **Branch:** `kioie/v03-phase3-agent-facts`
 
-## Phase 4 — Token-efficient retrieval
+## Phase 4 — Token-efficient retrieval ✅ (v0.4.0)
 
 **Goal:** Bounded token output per retrieval call (configurable budget).
 
-- New MCP tool: `retrieve_context` with `max_tokens`
-- Greedy pack ranked results
-- Strict split: `recall` requires query; browse via `list_memories`
+- [x] New MCP tool: `retrieve_context` with `max_tokens`
+- [x] Greedy pack ranked results
+- [x] Strict split: `recall` requires query; browse via `list_memories`
+
+**Branch:** `kioie/v04-phase4-retrieve-context`
 
 ## Phase 5 — Multi-signal retrieval
 
