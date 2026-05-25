@@ -1,4 +1,6 @@
-# memex
+<p align="center">
+  <img src="docs/assets/banner.png" alt="memex — long-term memory for AI coding agents" width="720">
+</p>
 
 **Stop re-explaining your stack every chat.** Long-term memory for AI coding agents — stored on your machine.
 

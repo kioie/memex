@@ -20,6 +20,8 @@ Metadata: [`server.json`](../server.json) at repo root.
 
 Docker package (stdio): `ghcr.io/kioie/memex:<version>` — build with root [`Dockerfile`](../Dockerfile).
 
+Logo and banner: [`docs/BRANDING.md`](./BRANDING.md) · [`docs/assets/`](../docs/assets/)
+
 ## Smithery
 
 **Live:** https://smithery.ai/servers/kioie/memex — MCPB stdio Docker (no hosting cost).
