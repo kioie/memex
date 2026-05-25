@@ -17,7 +17,7 @@ Merge the `mcpServers` block into your client's MCP settings file.
 | Guide | Topic |
 |-------|-------|
 | [scoping/README.md](scoping/README.md) | One user, multiple agents, session tags, metadata filters |
-| [http-deploy/](http-deploy/) | Streamable HTTP for Smithery and remote MCP |
+| [http-deploy/](http-deploy/) | Optional self-hosted HTTP (not needed for Smithery MCPB) |
 
 ## MCP prompts (built into the server)
 

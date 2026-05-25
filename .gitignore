@@ -12,3 +12,7 @@ dist/
 
 # Local memex data (when MEMEX_DIR points here)
 .memex/
+
+# Smithery MCPB build artifacts
+/.smithery/
+server.mcpb

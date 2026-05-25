@@ -1,6 +1,8 @@
-# HTTP deploy example (Smithery URL listing)
+# HTTP deploy example (optional — self-host only)
 
-Host **memex** as streamable HTTP MCP so users can connect through [Smithery](https://smithery.ai) or any HTTP MCP client — **no local install required**.
+Host **memex** as streamable HTTP MCP for self-hosted remote access or any HTTP MCP client.
+
+**Smithery listing uses MCPB (stdio Docker) instead** — see [docs/SMITHERY.md](../../docs/SMITHERY.md). You do not need this example for Smithery unless you want a hosted try-it URL.
 
 | Path | Purpose |
 |------|---------|
@@ -75,11 +77,10 @@ Mount the volume at `/data` in `fly.toml` when ready for durable hosted memory.
 | `MEMEX_HYBRID` | — | Set `1` for local vector fusion |
 | `MEMEX_VERBOSE` | — | Log store path on startup |
 
-## Publish on Smithery
+## Publish on Smithery (not needed for default listing)
+
+Smithery uses **MCPB stdio Docker** — see [docs/SMITHERY.md](../../docs/SMITHERY.md). Only publish an HTTP URL here if you self-host this example:
 
 ```bash
-smithery auth login
 smithery mcp publish "https://YOUR_HOST" -n kioie/memex
 ```
-
-Use the exact HTTPS origin (no trailing slash). MCP is at `/`.

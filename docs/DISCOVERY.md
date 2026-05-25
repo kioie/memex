@@ -22,12 +22,12 @@ Docker package (stdio): `ghcr.io/kioie/memex:<version>` — build with root [`Do
 
 ## Smithery
 
+**Live:** https://smithery.ai/servers/kioie/memex — MCPB stdio Docker (no hosting cost).
+
 | Mode | Doc | Best for |
 |------|-----|----------|
-| **URL (HTTP)** | [SMITHERY.md](./SMITHERY.md) | Try-it / remote connect without local install |
-| **MCPB (stdio Docker)** | [`smithery.yaml`](../smithery.yaml) | Smithery install → local Docker volume at `/data` |
-
-Runnable HTTP template: [`examples/http-deploy/`](../examples/http-deploy/).
+| **MCPB (stdio Docker)** ✓ | [SMITHERY.md](./SMITHERY.md) · [`smithery.yaml`](../smithery.yaml) | Smithery install → local Docker volume at `/data` |
+| **URL (HTTP)** optional | [`examples/http-deploy/`](../examples/http-deploy/) | Self-hosted remote try-it only |
 
 ## Community directories (manual)
 
