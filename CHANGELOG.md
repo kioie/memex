@@ -2,6 +2,14 @@
 
 All notable changes to memex are documented here. Version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-05-24
+
+### Added
+
+- MCP prompts: `memory_guide`, `session_start`, `remember_fact` — agent conventions for when and how to use memory tools.
+- `memex doctor` CLI — reports version, schema generation, database path, active memory counts, hybrid mode, and env defaults.
+- `examples/` cookbook — Cursor MCP configs and multi-agent scoping guide.
+
 ## [0.5.1] - 2026-05-24
 
 ### Fixed
@@ -73,6 +81,7 @@ All notable changes to memex are documented here. Version numbers follow [Semant
 - Tools: `remember`, `recall`, `forget`, `get_memory`.
 - SQLite + FTS5 storage under `~/.memex`.
 
+[0.6.0]: https://github.com/kioie/memex/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/kioie/memex/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/kioie/memex/releases/tag/v0.5.0
 [0.4.0]: https://github.com/kioie/memex/compare/v0.3.2...v0.4.0

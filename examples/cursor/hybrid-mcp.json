@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "memex": {
+      "command": "memex",
+      "args": ["serve"],
+      "env": {
+        "MEMEX_USER_ID": "default",
+        "MEMEX_HYBRID": "1"
+      }
+    }
+  }
+}

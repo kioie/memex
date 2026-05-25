@@ -1,7 +1,7 @@
-// Command memex is the memory extender CLI — local-first MCP server for AI agents.
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -14,6 +14,9 @@ func main() {
 		switch os.Args[1] {
 		case "serve", "run":
 			runServe()
+			return
+		case "doctor":
+			runDoctor()
 			return
 		case "version", "-v", "--version":
 			fmt.Println(memex.Version)
@@ -50,6 +53,24 @@ func runServe() {
 	}
 }
 
+func runDoctor() {
+	dir, err := memex.ResolveDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+	store, err := memex.Open(dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer store.Close()
+
+	report, err := store.Doctor(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Print(memex.FormatDoctorReport(report))
+}
+
 func printUsage() {
 	fmt.Println(`memex — memory extender for AI agents
 
@@ -58,6 +79,7 @@ Usage:
 
 Commands:
   serve     Start the MCP server over stdio (default)
+  doctor    Print store path, schema version, memory counts, and env defaults
   version   Print version
   help      Show this help
 

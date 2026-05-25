@@ -1,6 +1,6 @@
 # memex
 
-**Memory extender for AI agents** — local-first, MCP-native, zero config. **v0.5.1**
+**Memory extender for AI agents** — local-first, MCP-native, zero config. **v0.6.0**
 
 Inspired by [Vannevar Bush's memex](https://en.wikipedia.org/wiki/Memex): a device for storing and linking knowledge. This project gives coding agents and LLM clients durable memory across sessions — no API keys, no cloud, no vector DB setup.
 
@@ -43,9 +43,13 @@ Start a new chat later:
 
 For bounded context injection, use `retrieve_context` with a token budget instead of dumping full recall results.
 
+MCP clients can fetch **`memory_guide`**, **`session_start`**, and **`remember_fact`** prompts from the server for writing conventions. Run **`memex doctor`** to inspect the local store path, schema, and memory counts.
+
+See [examples/](examples/) for Cursor configs and multi-agent scoping patterns.
+
 ---
 
-## What you get (v0.5.0)
+## What you get (v0.6.0)
 
 | Capability | memex |
 |------------|-------|
@@ -54,9 +58,11 @@ For bounded context injection, use `retrieve_context` with a token budget instea
 | **Append-only facts** | `update_memory` supersedes (new row); soft-delete preserves audit trail |
 | **Agent facts** | First-class `source` (`user` / `agent` / `system`) and commitment-style types |
 | **Strong scoping** | `user_id`, `agent_id`, `run_id`, metadata filters — scoped CRUD and history |
+| **Agent prompts** | MCP prompts: `memory_guide`, `session_start`, `remember_fact` |
+| **Operator CLI** | `memex doctor` — path, schema, counts, hybrid flag, env defaults |
 | **Fully local** | SQLite + FTS5 on disk; optional semantic signal via `MEMEX_HYBRID=1` — no cloud LLM or embeddings API |
 
-See [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP-v0.3.md](docs/ROADMAP-v0.3.md) for release history and future work.
+See [examples/](examples/) for Cursor MCP configs and scoping recipes.
 
 ---
 
@@ -74,6 +80,18 @@ See [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP-v0.3.md](docs/ROADMAP-v0.3.md
 | `delete_memories` | Batch soft-delete by IDs |
 | `delete_all_memories` | Wipe user scope (requires `confirm=true`) |
 | `memory_history` | ADD / supersede / delete audit trail for a memory |
+
+See [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP-v0.3.md](docs/ROADMAP-v0.3.md) for release history and future work.
+
+---
+
+## MCP prompts
+
+| Prompt | Purpose |
+|--------|---------|
+| `memory_guide` | When to remember, tool choice, types/source, scoping — fetch at session start |
+| `session_start` | Checklist to load preferences via `retrieve_context`; optional `run_id` arg |
+| `remember_fact` | Distill a `draft` into an atomic fact before calling `remember` |
 
 Memory types include `note`, `preference`, `decision`, `fact`, `procedure`, plus agent-oriented types: `commitment`, `recommendation`, `action_taken`.
 
@@ -120,6 +138,7 @@ make test              # fast unit suite (race + -short)
 make test-integration  # MCP stdio subprocess roundtrip
 make test-full         # scale tests (1k–5k rows, large payloads)
 go run ./cmd/memex serve
+memex doctor           # inspect local store health
 ```
 
 Layer split: `memex/store.go` owns SQLite + FTS; `memex/server.go` registers tools via `tinymcp.RegisterTool` and serves over stdio (`server.Start`). Roundtrip tests use `server.RawServer()` for in-memory transport; integration tests spawn the CLI subprocess.

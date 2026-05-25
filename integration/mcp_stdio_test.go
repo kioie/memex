@@ -63,6 +63,14 @@ func TestMemexStdioMCPRoundtrip(t *testing.T) {
 	if !strings.Contains(textFromToolResult(recallRes), "stdio") {
 		t.Fatalf("unexpected recall response: %q", textFromToolResult(recallRes))
 	}
+
+	prompts, err := session.ListPrompts(ctx, &mcp.ListPromptsParams{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prompts.Prompts) != 3 {
+		t.Fatalf("expected 3 MCP prompts, got %d", len(prompts.Prompts))
+	}
 }
 
 func TestMemexRetrieveContextStdio(t *testing.T) {
