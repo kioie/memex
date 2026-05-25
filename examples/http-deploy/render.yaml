@@ -1,0 +1,14 @@
+# Render Blueprint — memex HTTP MCP (no Docker for operators).
+services:
+  - type: web
+    name: memex-http
+    runtime: go
+    rootDir: examples/http-deploy
+    buildCommand: go build -o server .
+    startCommand: ./server
+    healthCheckPath: /health
+    envVars:
+      - key: MEMEX_DIR
+        value: /tmp/memex
+      - key: MEMEX_VERBOSE
+        value: "1"

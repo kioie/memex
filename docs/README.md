@@ -7,6 +7,8 @@ Plain-language guides for humans and AI agents.
 | [Getting started](GETTING-STARTED.md) | Developers | Install, connect Cursor, verify it works, first memories |
 | [For AI agents](FOR-AGENTS.md) | LLMs / agent authors | Which tool to call, when to save memory, what to avoid |
 | [Examples](../examples/) | Everyone | Copy-paste MCP configs and multi-agent setups |
+| [Discovery](DISCOVERY.md) | Maintainers | MCP Registry, Smithery, directories |
+| [Smithery](SMITHERY.md) | Maintainers | Publish HTTP URL or MCPB bundle |
 | [Roadmap](ROADMAP-v0.3.md) | Contributors | Release history and planned work |
 | [Changelog](../CHANGELOG.md) | Everyone | Version-by-version changes |
 
@@ -19,4 +21,6 @@ Plain-language guides for humans and AI agents.
 - **Install:** `go install github.com/kioie/memex/cmd/memex@latest`
 - **Health check:** `memex doctor`
 - **Run server:** `memex serve` (stdio — used by MCP clients automatically)
+- **Try in browser:** `npx @modelcontextprotocol/inspector memex serve`
+- **HTTP deploy:** [examples/http-deploy](../examples/http-deploy/)
 - **Repo:** [github.com/kioie/memex](https://github.com/kioie/memex)
