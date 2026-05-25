@@ -293,7 +293,7 @@ func (s *Store) Get(_ context.Context, id, userID, agentID string) (*Memory, err
 	row := s.db.QueryRow(query, args...)
 	mem, err := scanMemoryFull(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("memory not found: %s", id)
+		return nil, errMemoryNotFound(id)
 	}
 	return mem, err
 }
@@ -334,7 +334,7 @@ func (s *Store) Forget(_ context.Context, id, userID, agentID string) error {
 		return err
 	}
 	if n == 0 {
-		return fmt.Errorf("memory not found: %s", id)
+		return errMemoryNotFound(id)
 	}
 	rowID, err := s.memoryRowIDLocked(id)
 	if err != nil {

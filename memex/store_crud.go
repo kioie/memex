@@ -121,7 +121,7 @@ func (s *Store) closeSupersededRowLocked(id, scopeUserID, agentID, nowStr string
 		return fmt.Errorf("supersede old memory: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("memory not found: %s", id)
+		return errMemoryNotFound(id)
 	}
 	oldTagsJSON, _ := json.Marshal(old.Tags)
 	rowID, err := s.memoryRowIDLocked(id)
@@ -190,7 +190,7 @@ func (s *Store) getActiveLockedForUser(id, userID, agentID string) (*Memory, err
 		return nil, err
 	}
 	if mem.ValidTo != nil {
-		return nil, fmt.Errorf("memory not found: %s", id)
+		return nil, errMemoryNotFound(id)
 	}
 	return mem, nil
 }
@@ -208,7 +208,7 @@ func (s *Store) getLockedForUser(id, userID, agentID string) (*Memory, error) {
 		row := s.db.QueryRow(query, args...)
 		mem, err := scanMemoryFull(row)
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("memory not found: %s", id)
+			return nil, errMemoryNotFound(id)
 		}
 		return mem, err
 	}
@@ -217,7 +217,7 @@ func (s *Store) getLockedForUser(id, userID, agentID string) (*Memory, error) {
 		FROM memories WHERE id = ?`, id)
 	mem, err := scanMemoryFull(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("memory not found: %s", id)
+		return nil, errMemoryNotFound(id)
 	}
 	return mem, err
 }
@@ -257,7 +257,7 @@ func (s *Store) softDeleteLocked(id, userID string, old *Memory) error {
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return fmt.Errorf("memory not found: %s", id)
+		return errMemoryNotFound(id)
 	}
 	rowID, err := s.memoryRowIDLocked(id)
 	if err != nil {
