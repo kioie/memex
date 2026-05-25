@@ -4,22 +4,24 @@ All notable changes to memex are documented here. Version numbers follow [Semant
 
 ## [Unreleased]
 
-### Added
-
-- `server.json` for MCP Registry publishing (`io.github.kioie/memex`)
-- `examples/http-deploy/` — streamable HTTP MCP for Smithery URL listing (Render, Fly, Docker)
-- Root `Dockerfile` (stdio) and `smithery.yaml` (MCPB Docker bundle)
-- `docs/DISCOVERY.md` and `docs/SMITHERY.md` — publishing and try-it guides
-- MCP Inspector and Smithery links in README and getting started
-- `make run-http` / `make test-http`
-
-## [0.6.0] - 2026-05-24
+## [0.6.0] - 2026-05-25
 
 ### Added
 
 - MCP prompts: `memory_guide`, `session_start`, `remember_fact` — agent conventions for when and how to use memory tools.
 - `memex doctor` CLI — reports version, schema generation, database path, active memory counts, hybrid mode, and env defaults.
 - `examples/` cookbook — Cursor MCP configs and multi-agent scoping guide.
+- `server.json` for MCP Registry publishing (`io.github.kioie/memex`).
+- Root `Dockerfile` (stdio), `smithery.yaml`, and `smithery/entry.js` — Smithery MCPB Docker bundle (no HTTP hosting required).
+- `examples/http-deploy/` — optional self-hosted streamable HTTP MCP.
+- GitHub Actions workflow to publish `ghcr.io/kioie/memex` and `ghcr.io/kioie/memex-http` on release tags.
+- `docs/DISCOVERY.md` and `docs/SMITHERY.md` — publishing and discovery guides.
+- `make run-http` / `make test-http`.
+
+### Changed
+
+- Smithery listing at [kioie/memex](https://smithery.ai/servers/kioie/memex) uses MCPB stdio Docker as the default path.
+- README and getting-started docs updated for outcome-first onboarding and Smithery install.
 
 ## [0.5.1] - 2026-05-24
 
