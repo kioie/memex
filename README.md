@@ -1,6 +1,6 @@
 # memex
 
-**Long-term memory for your AI coding agent — stored on your machine.**
+**Stop re-explaining your stack every chat.** Long-term memory for AI coding agents — stored on your machine.
 
 memex gives Cursor, Claude Desktop, and other MCP clients a memory that survives across chats. Save preferences, decisions, and facts once; the agent finds them again later. No cloud account, no API keys, no vector database to run.
 
@@ -9,6 +9,36 @@ memex gives Cursor, Claude Desktop, and other MCP clients a memory that survives
 [![Go Reference](https://pkg.go.dev/badge/github.com/kioie/memex/memex.svg)](https://pkg.go.dev/github.com/kioie/memex/memex)
 
 **Current release:** v0.6.0 · **Requires:** Go 1.26+
+
+---
+
+## When to use memex
+
+**Use memex if you:**
+
+- Code with **Cursor**, **Claude Desktop**, or any **MCP** client
+- Want preferences and project facts to **persist across chats**
+- Need memory **on your machine** — no vendor account or API keys
+- Are building or running an **agent** that should recall past context
+
+**Good fits — ask memex to remember things like:**
+
+| Situation | Example |
+|-----------|---------|
+| Coding preferences | "Prefers Go, table-driven tests, no Python for services" |
+| Project decisions | "This repo uses SQLite; don't suggest Postgres" |
+| Conventions | "Branch names: `feature/…`, commits: conventional commits" |
+| Agent commitments | "Will add integration tests before merging" |
+| Session start | Agent loads your prefs instead of re-interviewing you |
+
+**memex is not for:**
+
+- Passwords, API keys, or secrets
+- Full chat transcripts or log archival
+- Team-wide cloud memory synced across machines (local-first, per device)
+- Non-MCP apps (memex speaks MCP over stdio)
+
+**Agents:** if the user repeats themselves across sessions, or asks you to "remember" something durable — use memex. See [docs/FOR-AGENTS.md](docs/FOR-AGENTS.md).
 
 ---
 
