@@ -26,6 +26,7 @@ type UpdateInput struct {
 	Content  string
 	Tags     []string
 	Type     string
+	Source   string
 	Metadata map[string]any
 	UserID   string
 	AgentID  string
@@ -45,6 +46,16 @@ func (s *Store) Update(_ context.Context, id string, in UpdateInput) (*Memory, e
 		return nil, err
 	}
 	in.Content = content
+	if in.Type != "" {
+		if err := validateMemoryType(in.Type); err != nil {
+			return nil, err
+		}
+	}
+	if in.Source != "" {
+		if err := validateSource(in.Source); err != nil {
+			return nil, err
+		}
+	}
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -58,6 +69,7 @@ type supersedePayload struct {
 	scopeUserID string
 	content     string
 	memoryType  string
+	source      string
 	tags        []string
 	metadata    map[string]any
 	tagsJSON    string
@@ -75,6 +87,16 @@ func prepareSupersedePayload(old *Memory, in UpdateInput) (*supersedePayload, er
 	memoryType := in.Type
 	if memoryType == "" {
 		memoryType = old.Type
+	}
+	if err := validateMemoryType(memoryType); err != nil {
+		return nil, err
+	}
+	source := in.Source
+	if source == "" {
+		source = old.Source
+	}
+	if err := validateSource(source); err != nil {
+		return nil, err
 	}
 	tags := in.Tags
 	if tags == nil {
@@ -97,6 +119,7 @@ func prepareSupersedePayload(old *Memory, in UpdateInput) (*supersedePayload, er
 		scopeUserID: scopeUserID,
 		content:     in.Content,
 		memoryType:  memoryType,
+		source:      source,
 		tags:        tags,
 		metadata:    metadata,
 		tagsJSON:    string(tagsJSON),
@@ -140,13 +163,14 @@ func (s *Store) supersedeLocked(id string, in UpdateInput) (*Memory, error) {
 		AgentID:      old.AgentID,
 		RunID:        old.RunID,
 		SupersedesID: id,
+		Source:       payload.source,
 		Metadata:     payload.metadata,
 		CreatedAt:    payload.now,
 		UpdatedAt:    payload.now,
 	}
 	_, err = s.db.Exec(
-		`INSERT INTO memories (id, content, tags, memory_type, created_at, updated_at, content_hash, metadata, user_id, agent_id, run_id, supersedes_id, valid_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		mem.ID, mem.Content, payload.tagsJSON, mem.Type, payload.nowStr, payload.nowStr, payload.hash, payload.metaJSON, mem.UserID, mem.AgentID, mem.RunID, id, "",
+		sqlInsertMemory,
+		mem.ID, mem.Content, payload.tagsJSON, mem.Type, payload.nowStr, payload.nowStr, payload.hash, payload.metaJSON, mem.UserID, mem.AgentID, mem.RunID, id, "", mem.Source,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert superseding memory: %w", err)

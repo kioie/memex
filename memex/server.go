@@ -11,12 +11,13 @@ import (
 )
 
 const serverName = "memex"
-const serverVersion = "0.3.1"
+const serverVersion = "0.3.2"
 
 type rememberArgs struct {
 	Content  string         `json:"content" jsonschema:"Fact, preference, decision, or note to store (required)"`
 	Tags     []string       `json:"tags,omitempty" jsonschema:"Optional tags for filtering (e.g. user, project, preference)"`
-	Type     string         `json:"type,omitempty" jsonschema:"Memory type: note, preference, decision, fact, or procedure"`
+	Type     string         `json:"type,omitempty" jsonschema:"Memory type: note, preference, decision, fact, procedure, commitment, recommendation, or action_taken"`
+	Source   string         `json:"source,omitempty" jsonschema:"Who originated the memory: user, agent, or system (defaults to user; agent types default to agent)"`
 	UserID   string         `json:"user_id,omitempty" jsonschema:"Scope memory to a user (defaults to MEMEX_USER_ID or default)"`
 	AgentID  string         `json:"agent_id,omitempty" jsonschema:"Scope memory to an agent (defaults to MEMEX_AGENT_ID when set)"`
 	RunID    string         `json:"run_id,omitempty" jsonschema:"Tag memory with a run/session id (defaults to MEMEX_RUN_ID when set)"`
@@ -29,6 +30,7 @@ type recallArgs struct {
 	Offset   int               `json:"offset,omitempty" jsonschema:"Skip first N results for pagination"`
 	Tags     []string          `json:"tags,omitempty" jsonschema:"Filter by tags (any match)"`
 	Type     string            `json:"type,omitempty" jsonschema:"Filter by memory type"`
+	Source   string            `json:"source,omitempty" jsonschema:"Filter by source: user, agent, or system"`
 	UserID   string            `json:"user_id,omitempty" jsonschema:"Scope search to user_id (defaults to MEMEX_USER_ID)"`
 	AgentID  string            `json:"agent_id,omitempty" jsonschema:"Filter by agent_id (defaults to MEMEX_AGENT_ID when set)"`
 	RunID    string            `json:"run_id,omitempty" jsonschema:"Filter by run_id (defaults to MEMEX_RUN_ID when set)"`
@@ -41,6 +43,7 @@ type listMemoriesArgs struct {
 	Offset   int               `json:"offset,omitempty" jsonschema:"Skip first N results"`
 	Tags     []string          `json:"tags,omitempty" jsonschema:"Filter by tags (any match)"`
 	Type     string            `json:"type,omitempty" jsonschema:"Filter by memory type"`
+	Source   string            `json:"source,omitempty" jsonschema:"Filter by source: user, agent, or system"`
 	UserID   string            `json:"user_id,omitempty" jsonschema:"Scope list to user_id"`
 	AgentID  string            `json:"agent_id,omitempty" jsonschema:"Filter by agent_id"`
 	RunID    string            `json:"run_id,omitempty" jsonschema:"Filter by run_id"`
@@ -53,6 +56,7 @@ type updateMemoryArgs struct {
 	Content  string         `json:"content" jsonschema:"New content (required)"`
 	Tags     []string       `json:"tags,omitempty" jsonschema:"Replace tags when provided"`
 	Type     string         `json:"type,omitempty" jsonschema:"Replace memory type when provided"`
+	Source   string         `json:"source,omitempty" jsonschema:"Replace source when provided (user, agent, or system)"`
 	Metadata map[string]any `json:"metadata,omitempty" jsonschema:"Replace metadata when provided"`
 	UserID   string         `json:"user_id,omitempty" jsonschema:"Scope update to user_id (defaults to MEMEX_USER_ID)"`
 	AgentID  string         `json:"agent_id,omitempty" jsonschema:"Scope update to agent_id when set"`
@@ -94,12 +98,12 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 	h := &toolHandlers{store: store}
 
 	if err := tinymcp.RegisterTool(s, "remember",
-		"Store durable agent memory (preferences, decisions, facts). Agent writes distilled facts directly (no server-side LLM infer). Duplicate content for the same user_id returns the existing active memory. Use recall/search to read; use update_memory to supersede a fact; use forget/delete_memories to soft-delete.",
+		"Store durable agent memory (preferences, decisions, facts, commitments). Set source=agent for assistant-originated facts; commitment/recommendation/action_taken types default to agent. Duplicate content for the same user_id returns the existing active memory. Use recall/search to read; use update_memory to supersede a fact; use forget/delete_memories to soft-delete.",
 		h.remember); err != nil {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "recall",
-		"Search or list active stored memories (FTS5 keyword + BM25). Superseded and deleted rows are excluded by default. Supports tags, type, user_id filters and pagination. Do not use for live external data — use MCP tools for that; use remember to save new facts.",
+		"Search or list active stored memories (FTS5 keyword + BM25). Superseded and deleted rows are excluded by default. Supports tags, type, source, user_id filters and pagination. Do not use for live external data — use MCP tools for that; use remember to save new facts.",
 		h.recall); err != nil {
 		return nil, err
 	}
@@ -150,6 +154,7 @@ func (h *toolHandlers) remember(ctx context.Context, _ *mcp.CallToolRequest, arg
 		WithUserID(args.UserID),
 		WithAgentID(args.AgentID),
 		WithRunID(args.RunID),
+		WithSource(args.Source),
 		WithMetadata(args.Metadata),
 	}
 	mem, err := h.store.Remember(ctx, args.Content, args.Tags, args.Type, opts...)
@@ -167,6 +172,7 @@ func (h *toolHandlers) recall(ctx context.Context, _ *mcp.CallToolRequest, args 
 		RunID:           args.RunID,
 		Tags:            args.Tags,
 		Type:            args.Type,
+		Source:          args.Source,
 		Metadata:        args.Metadata,
 		IncludeInactive: args.IncludeInactive,
 		Limit:           limit,
@@ -186,6 +192,7 @@ func (h *toolHandlers) listMemories(ctx context.Context, _ *mcp.CallToolRequest,
 		RunID:           args.RunID,
 		Tags:            args.Tags,
 		Type:            args.Type,
+		Source:          args.Source,
 		Metadata:        args.Metadata,
 		IncludeInactive: args.IncludeInactive,
 		Limit:           limit,
@@ -202,6 +209,7 @@ func (h *toolHandlers) updateMemory(ctx context.Context, _ *mcp.CallToolRequest,
 		Content:  args.Content,
 		Tags:     args.Tags,
 		Type:     args.Type,
+		Source:   args.Source,
 		Metadata: args.Metadata,
 		UserID:   args.UserID,
 		AgentID:  args.AgentID,
@@ -282,6 +290,9 @@ func formatRemembered(mem *Memory) string {
 	}
 	if mem.Type != "" && mem.Type != "note" {
 		fmt.Fprintf(&b, "type: %s\n", mem.Type)
+	}
+	if mem.Source != "" && mem.Source != SourceUser {
+		fmt.Fprintf(&b, "source: %s\n", mem.Source)
 	}
 	return strings.TrimSpace(b.String())
 }
