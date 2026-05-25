@@ -32,7 +32,12 @@ func TestUpdateMemoryAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := store.Update(ctx, mem.ID, "v2", []string{"y"}, "decision", map[string]any{"source": "test"}, "", "")
+	updated, err := store.Update(ctx, mem.ID, UpdateInput{
+		Content:  "v2",
+		Tags:     []string{"y"},
+		Type:     "decision",
+		Metadata: map[string]any{"source": "test"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

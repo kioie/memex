@@ -19,13 +19,19 @@ CREATE TABLE IF NOT EXISTS memory_history (
 CREATE INDEX IF NOT EXISTS idx_memory_history_memory_id ON memory_history(memory_id);
 `
 
+const (
+	colTextNotNullEmpty       = "TEXT NOT NULL DEFAULT ''"
+	colTextNotNullDefaultJSON = "TEXT NOT NULL DEFAULT '{}'"
+	colTextNotNullDefaultUser = "TEXT NOT NULL DEFAULT 'default'"
+)
+
 func migrateStore(db *sql.DB) error {
 	columns := map[string]string{
-		"content_hash": "TEXT NOT NULL DEFAULT ''",
-		"metadata":     "TEXT NOT NULL DEFAULT '{}'",
-		"user_id":      "TEXT NOT NULL DEFAULT 'default'",
-		"agent_id":     "TEXT NOT NULL DEFAULT ''",
-		"run_id":       "TEXT NOT NULL DEFAULT ''",
+		"content_hash": colTextNotNullEmpty,
+		"metadata":     colTextNotNullDefaultJSON,
+		"user_id":      colTextNotNullDefaultUser,
+		"agent_id":     colTextNotNullEmpty,
+		"run_id":       colTextNotNullEmpty,
 	}
 	for name, def := range columns {
 		exists, err := columnExists(db, "memories", name)

@@ -20,7 +20,7 @@ type rememberArgs struct {
 	UserID   string         `json:"user_id,omitempty" jsonschema:"Scope memory to a user (defaults to MEMEX_USER_ID or default)"`
 	AgentID  string         `json:"agent_id,omitempty" jsonschema:"Scope memory to an agent (defaults to MEMEX_AGENT_ID when set)"`
 	RunID    string         `json:"run_id,omitempty" jsonschema:"Tag memory with a run/session id (defaults to MEMEX_RUN_ID when set)"`
-	Metadata map[string]any `json:"metadata,omitempty" jsonschema:"Optional JSON metadata bag (mem0-style)"`
+	Metadata map[string]any `json:"metadata,omitempty" jsonschema:"Optional JSON metadata bag"`
 }
 
 type recallArgs struct {
@@ -102,7 +102,7 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "list_memories",
-		"List memories with filters and pagination without a search query (mem0 get_memories). Use when browsing recent context; use recall when you have keywords.",
+		"List memories with filters and pagination without a search query. Use when browsing recent context; use recall when you have keywords.",
 		h.listMemories); err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "delete_memories",
-		"Delete multiple memories by ID list for a user scope (mem0 batch delete).",
+		"Delete multiple memories by ID list for a user scope.",
 		h.deleteMemories); err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "memory_history",
-		"Return ADD/UPDATE/DELETE audit trail for a memory ID (local mem0 history mirror).",
+		"Return ADD/UPDATE/DELETE audit trail for a memory ID.",
 		h.memoryHistory); err != nil {
 		return nil, err
 	}
@@ -157,24 +157,18 @@ func (h *toolHandlers) remember(ctx context.Context, _ *mcp.CallToolRequest, arg
 	return tinymcp.TextResult(formatRemembered(mem)), nil, nil
 }
 
-func memoryFilterFromArgs(userID, agentID, runID, typ string, tags []string, metadata map[string]string, limit, offset int) MemoryFilter {
-	return MemoryFilter{
-		UserID:   userID,
-		AgentID:  agentID,
-		RunID:    runID,
-		Tags:     tags,
-		Type:     typ,
-		Metadata: metadata,
-		Limit:    limit,
-		Offset:   offset,
-	}
-}
-
 func (h *toolHandlers) recall(ctx context.Context, _ *mcp.CallToolRequest, args recallArgs) (*mcp.CallToolResult, any, error) {
 	limit, offset := clampLimitOffset(args.Limit, args.Offset)
-	memories, err := h.store.Search(ctx, args.Query, memoryFilterFromArgs(
-		args.UserID, args.AgentID, args.RunID, args.Type, args.Tags, args.Metadata, limit, offset,
-	))
+	memories, err := h.store.Search(ctx, args.Query, MemoryFilter{
+		UserID:   args.UserID,
+		AgentID:  args.AgentID,
+		RunID:    args.RunID,
+		Tags:     args.Tags,
+		Type:     args.Type,
+		Metadata: args.Metadata,
+		Limit:    limit,
+		Offset:   offset,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -183,9 +177,16 @@ func (h *toolHandlers) recall(ctx context.Context, _ *mcp.CallToolRequest, args 
 
 func (h *toolHandlers) listMemories(ctx context.Context, _ *mcp.CallToolRequest, args listMemoriesArgs) (*mcp.CallToolResult, any, error) {
 	limit, offset := clampLimitOffset(args.Limit, args.Offset)
-	memories, err := h.store.List(ctx, memoryFilterFromArgs(
-		args.UserID, args.AgentID, args.RunID, args.Type, args.Tags, args.Metadata, limit, offset,
-	))
+	memories, err := h.store.List(ctx, MemoryFilter{
+		UserID:   args.UserID,
+		AgentID:  args.AgentID,
+		RunID:    args.RunID,
+		Tags:     args.Tags,
+		Type:     args.Type,
+		Metadata: args.Metadata,
+		Limit:    limit,
+		Offset:   offset,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -193,7 +194,14 @@ func (h *toolHandlers) listMemories(ctx context.Context, _ *mcp.CallToolRequest,
 }
 
 func (h *toolHandlers) updateMemory(ctx context.Context, _ *mcp.CallToolRequest, args updateMemoryArgs) (*mcp.CallToolResult, any, error) {
-	mem, err := h.store.Update(ctx, args.ID, args.Content, args.Tags, args.Type, args.Metadata, args.UserID, args.AgentID)
+	mem, err := h.store.Update(ctx, args.ID, UpdateInput{
+		Content:  args.Content,
+		Tags:     args.Tags,
+		Type:     args.Type,
+		Metadata: args.Metadata,
+		UserID:   args.UserID,
+		AgentID:  args.AgentID,
+	})
 	if err != nil {
 		return nil, nil, err
 	}

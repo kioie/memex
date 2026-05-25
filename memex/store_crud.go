@@ -21,8 +21,18 @@ func (s *Store) getByHashLocked(userID, hash string) (*Memory, error) {
 	return mem, err
 }
 
+// UpdateInput carries fields for Update.
+type UpdateInput struct {
+	Content  string
+	Tags     []string
+	Type     string
+	Metadata map[string]any
+	UserID   string
+	AgentID  string
+}
+
 // Update overwrites memory content scoped to userID (defaults to MEMEX_USER_ID).
-func (s *Store) Update(_ context.Context, id string, content string, tags []string, memoryType string, metadata map[string]any, userID, agentID string) (*Memory, error) {
+func (s *Store) Update(_ context.Context, id string, in UpdateInput) (*Memory, error) {
 	if s == nil {
 		return nil, errStoreClosed
 	}
@@ -30,7 +40,7 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 	if err != nil {
 		return nil, err
 	}
-	content = strings.TrimSpace(content)
+	content := strings.TrimSpace(in.Content)
 	if err := validateContent(content); err != nil {
 		return nil, err
 	}
@@ -41,7 +51,7 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 		return nil, errStoreClosed
 	}
 
-	old, err := s.getLockedForUser(id, ResolveUserIDArg(userID), agentID)
+	old, err := s.getLockedForUser(id, ResolveUserIDArg(in.UserID), in.AgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -49,12 +59,15 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 	if scopeUserID == "" {
 		scopeUserID = defaultUserID
 	}
+	memoryType := in.Type
 	if memoryType == "" {
 		memoryType = old.Type
 	}
+	tags := in.Tags
 	if tags == nil {
 		tags = old.Tags
 	}
+	metadata := in.Metadata
 	if metadata == nil {
 		metadata = old.Metadata
 	}
@@ -73,7 +86,7 @@ func (s *Store) Update(_ context.Context, id string, content string, tags []stri
 		UPDATE memories SET content = ?, tags = ?, memory_type = ?, updated_at = ?, content_hash = ?, metadata = ?
 		WHERE id = ? AND user_id = ?`
 	args := []any{content, string(tagsJSON), memoryType, now.Format(time.RFC3339Nano), hash, metaJSON, id, scopeUserID}
-	if a := ResolveAgentIDArg(agentID); a != "" {
+	if a := ResolveAgentIDArg(in.AgentID); a != "" {
 		query += clauseFilterAgentID
 		args = append(args, a)
 	}
@@ -133,7 +146,7 @@ func (s *Store) getLockedForUser(id, userID, agentID string) (*Memory, error) {
 	return mem, err
 }
 
-// List returns memories matching filters without full-text search (mem0 get_all).
+// List returns memories matching filters without full-text search.
 func (s *Store) List(_ context.Context, filter MemoryFilter) ([]Memory, error) {
 	if s == nil || s.db == nil {
 		return nil, errStoreClosed
@@ -208,7 +221,7 @@ func (s *Store) ForgetBatch(_ context.Context, ids []string, userID string) (int
 	return deleted, nil
 }
 
-// ForgetAll deletes all memories for a user_id scope (mem0 delete_all).
+// ForgetAll deletes all memories for a user_id scope.
 func (s *Store) ForgetAll(_ context.Context, userID string) (int, error) {
 	if s == nil {
 		return 0, errStoreClosed
