@@ -9,8 +9,6 @@ import (
 	"github.com/kioie/memex/memex"
 )
 
-const version = "0.1.0"
-
 func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
@@ -18,7 +16,7 @@ func main() {
 			runServe()
 			return
 		case "version", "-v", "--version":
-			fmt.Println(version)
+			fmt.Println(memex.Version)
 			return
 		case "help", "-h", "--help":
 			printUsage()
@@ -65,5 +63,6 @@ Commands:
 
 Environment:
   MEMEX_DIR       Data directory (default: ~/.memex)
+  MEMEX_HYBRID=1  Enable local vector retrieval (fused with keyword + entity signals)
   MEMEX_VERBOSE   Log store path to stderr`)
 }

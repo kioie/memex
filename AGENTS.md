@@ -21,6 +21,7 @@ Guidance for AI coding agents working in this repository.
 ## Layout
 
 - `memex/` — importable library (`github.com/kioie/memex/memex`): SQLite store + MCP tool registration
+- `memex/version.go` — single `Version` constant (library, MCP server, CLI)
 - `cmd/memex/` — CLI (`memex serve` → `NewMCPServer` + `tinymcp` stdio)
 - `integration/` — MCP stdio subprocess tests (`//go:build integration`)
 
@@ -29,6 +30,7 @@ Guidance for AI coding agents working in this repository.
 | Concern | Where | Notes |
 |---------|-------|-------|
 | Store / FTS | `memex/store.go` | No MCP imports |
+| Hybrid / entities | `memex/store_hybrid.go`, `store_entities.go`, `store_embed.go` | RRF fusion; `MEMEX_HYBRID=1` |
 | Tool handlers | `memex/server.go` | `tinymcp.RegisterTool`, `tinymcp.TextResult` |
 | Stdio serve | `cmd/memex/main.go` | `server.Start()` from tinymcp |
 | In-memory tests | `mcp_roundtrip_test.go` | `server.RawServer().Connect(...)` |
@@ -40,15 +42,18 @@ Handler signature: `func(ctx, *mcp.CallToolRequest, args In) (*mcp.CallToolResul
 
 | Tool | Purpose |
 |------|---------|
-| `remember` | Store a durable fact (hash dedup per user_id; optional agent/run scope + metadata) |
-| `recall` | FTS search / recent list with filters (user, agent, run, tags, type, metadata) |
+| `remember` | Store a durable fact (hash dedup per user_id; optional agent/run scope, source, metadata) |
+| `recall` | FTS + hybrid search; **query required** — use `list_memories` to browse |
+| `retrieve_context` | Ranked search packed within `max_tokens` (greedy; hybrid fusion) |
 | `list_memories` | Paginated list with filters (no query) |
-| `update_memory` | Revise content by ID (scoped by user_id; optional agent_id) |
+| `update_memory` | Supersede an active memory by ID (append-only; returns new ID) |
 | `get_memory` | Fetch one memory by exact ID (scoped; optional agent_id) |
-| `forget` | Delete one memory (scoped; optional agent_id) |
-| `delete_memories` | Batch delete |
+| `forget` | Soft-delete one memory (scoped; optional agent_id) |
+| `delete_memories` | Batch soft-delete |
 | `delete_all_memories` | Scoped wipe (`confirm=true`) |
-| `memory_history` | ADD/UPDATE/DELETE audit trail (scoped by user_id) |
+| `memory_history` | ADD / supersede / delete audit trail (scoped by user_id) |
+
+Memory types: `note`, `preference`, `decision`, `fact`, `procedure`, `commitment`, `recommendation`, `action_taken`.
 
 Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when not to, and sibling tools.
 
@@ -58,6 +63,7 @@ Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when
 - `MEMEX_USER_ID` — default user scope for memories (default `default`)
 - `MEMEX_AGENT_ID` — default agent scope when tool args omit `agent_id`
 - `MEMEX_RUN_ID` — default run/session tag when tool args omit `run_id`
+- `MEMEX_HYBRID=1` — enable local vector retrieval (deterministic embeddings, fused with FTS + entities via RRF)
 - `MEMEX_VERBOSE=1` — log store path to stderr (stdio is reserved for MCP)
 
 ## Code style
@@ -76,10 +82,11 @@ Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when
 | `store_persistence_test.go` | Reopen durability, idempotent Open |
 | `store_scale_test.go` | 100–5,000 inserts, search latency, concurrent writes, benchmarks |
 | `store_security_test.go` | Special content, env paths, injection-style payloads |
+| `store_phase*.go` / `*_test.go` | Phase 3–5: source, retrieve_context, hybrid RRF |
 | `mcp_roundtrip_test.go` | In-memory MCP client ↔ server tool roundtrip |
 | `server_test.go` | MCP recall cap (50), error propagation, format helpers |
 
-Integration (`integration/mcp_stdio_test.go`): real subprocess `memex serve` over stdio.
+Integration (`integration/mcp_stdio_test.go`): real subprocess `memex serve` over stdio — remember/recall, `retrieve_context`, hybrid mode, supersession.
 
 ## CI workflows
 
@@ -113,6 +120,7 @@ Integration (`integration/mcp_stdio_test.go`): real subprocess `memex serve` ove
 - **Recall default**: 10 rows at store level; MCP handler caps at **50**
 - **Content size**: max **256 KiB** per memory (`remember` / `update_memory`); SQLite TEXT supports larger values but memex rejects oversize writes
 - **Scale**: 5,000 rows insert + FTS search passes; not a hard limit
+- **Hybrid vectors**: full-user embedding scan in Go (no sqlite-vec ANN yet)
 - **Concurrent writes**: serialized with an in-process write mutex; SQLite `busy_timeout` (5s) covers multi-process access to the same DB file
 - **FTS queries**: tokenized and quoted per word (`buildFTSQuery`); boolean operators in user input are not interpreted
 

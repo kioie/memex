@@ -11,7 +11,6 @@ import (
 )
 
 const serverName = "memex"
-const serverVersion = "0.5.0"
 
 type rememberArgs struct {
 	Content  string         `json:"content" jsonschema:"Fact, preference, decision, or note to store (required)"`
@@ -107,7 +106,7 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store is required")
 	}
-	s := tinymcp.NewServer(serverName, serverVersion)
+	s := tinymcp.NewServer(serverName, Version)
 	h := &toolHandlers{store: store}
 
 	if err := tinymcp.RegisterTool(s, "remember",

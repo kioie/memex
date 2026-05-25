@@ -1,6 +1,6 @@
 # memex
 
-**Memory extender for AI agents** — local-first, MCP-native, zero config. **v0.5.0**
+**Memory extender for AI agents** — local-first, MCP-native, zero config. **v0.5.1**
 
 Inspired by [Vannevar Bush's memex](https://en.wikipedia.org/wiki/Memex): a device for storing and linking knowledge. This project gives coding agents and LLM clients durable memory across sessions — no API keys, no cloud, no vector DB setup.
 
@@ -56,7 +56,7 @@ For bounded context injection, use `retrieve_context` with a token budget instea
 | **Strong scoping** | `user_id`, `agent_id`, `run_id`, metadata filters — scoped CRUD and history |
 | **Fully local** | SQLite + FTS5 on disk; optional semantic signal via `MEMEX_HYBRID=1` — no cloud LLM or embeddings API |
 
-See [docs/ROADMAP-v0.3.md](docs/ROADMAP-v0.3.md) for release history and future work.
+See [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP-v0.3.md](docs/ROADMAP-v0.3.md) for release history and future work.
 
 ---
 

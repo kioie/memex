@@ -6,12 +6,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kioie/memex/memex"
 )
 
 func TestCLIVersion(t *testing.T) {
 	out := runCLI(t, "version")
-	if strings.TrimSpace(out) != version {
-		t.Fatalf("version output = %q, want %q", out, version)
+	if strings.TrimSpace(out) != memex.Version {
+		t.Fatalf("version output = %q, want %q", out, memex.Version)
 	}
 }
 
