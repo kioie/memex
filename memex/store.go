@@ -23,6 +23,9 @@ import (
 
 const defaultBusyTimeout = 5 * time.Second
 
+// maxMemoryContentLen caps stored fact size to limit context-poisoning and runaway writes.
+const maxMemoryContentLen = 256 << 10 // 256 KiB
+
 const schema = `
 CREATE TABLE IF NOT EXISTS memories (
 	id TEXT PRIMARY KEY,
@@ -153,8 +156,8 @@ func (s *Store) Remember(_ context.Context, content string, tags []string, memor
 		return nil, errStoreClosed
 	}
 	content = strings.TrimSpace(content)
-	if content == "" {
-		return nil, errors.New("content is required")
+	if err := validateContent(content); err != nil {
+		return nil, err
 	}
 	cfg := applyRememberOptions(opts)
 	userID := ResolveUserIDArg(cfg.UserID)
@@ -247,8 +250,8 @@ func (s *Store) listRecentFiltered(limit int, filter MemoryFilter) ([]Memory, er
 	return scanMemoriesFull(rows)
 }
 
-// Get returns one memory by ID.
-func (s *Store) Get(_ context.Context, id string) (*Memory, error) {
+// Get returns one memory by ID scoped to userID (defaults to MEMEX_USER_ID).
+func (s *Store) Get(_ context.Context, id, userID string) (*Memory, error) {
 	if s == nil || s.db == nil {
 		return nil, errStoreClosed
 	}
@@ -256,9 +259,10 @@ func (s *Store) Get(_ context.Context, id string) (*Memory, error) {
 	if err != nil {
 		return nil, err
 	}
+	userID = ResolveUserIDArg(userID)
 	row := s.db.QueryRow(`
 		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id
-		FROM memories WHERE id = ?`, id)
+		FROM memories WHERE id = ? AND user_id = ?`, id, userID)
 	mem, err := scanMemoryFull(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("memory not found: %s", id)
@@ -266,8 +270,8 @@ func (s *Store) Get(_ context.Context, id string) (*Memory, error) {
 	return mem, err
 }
 
-// Forget deletes a memory by ID.
-func (s *Store) Forget(_ context.Context, id string) error {
+// Forget deletes a memory by ID scoped to userID (defaults to MEMEX_USER_ID).
+func (s *Store) Forget(_ context.Context, id, userID string) error {
 	if s == nil {
 		return errStoreClosed
 	}
@@ -275,17 +279,18 @@ func (s *Store) Forget(_ context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	userID = ResolveUserIDArg(userID)
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.db == nil {
 		return errStoreClosed
 	}
-	old, err := s.getLocked(id)
+	old, err := s.getLockedForUser(id, userID)
 	if err != nil {
 		return err
 	}
-	res, err := s.db.Exec(`DELETE FROM memories WHERE id = ?`, id)
+	res, err := s.db.Exec(`DELETE FROM memories WHERE id = ? AND user_id = ?`, id, userID)
 	if err != nil {
 		return fmt.Errorf("delete memory: %w", err)
 	}
@@ -295,10 +300,6 @@ func (s *Store) Forget(_ context.Context, id string) error {
 	}
 	if n == 0 {
 		return fmt.Errorf("memory not found: %s", id)
-	}
-	userID := old.UserID
-	if userID == "" {
-		userID = defaultUserID
 	}
 	return s.recordHistory(id, userID, historyDelete, old.Content, "")
 }

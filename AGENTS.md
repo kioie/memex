@@ -109,7 +109,7 @@ Integration (`integration/mcp_stdio_test.go`): real subprocess `memex serve` ove
 **Known limits (current implementation):**
 
 - **Recall default**: 10 rows at store level; MCP handler caps at **50**
-- **Content size**: no app-level cap; SQLite TEXT supports ~1GB; tests verify 1KiB–1MiB
+- **Content size**: max **256 KiB** per memory (`remember` / `update_memory`); SQLite TEXT supports larger values but memex rejects oversize writes
 - **Scale**: 5,000 rows insert + FTS search passes; not a hard limit
 - **Concurrent writes**: serialized with an in-process write mutex; SQLite `busy_timeout` (5s) covers multi-process access to the same DB file
 - **FTS queries**: tokenized and quoted per word (`buildFTSQuery`); boolean operators in user input are not interpreted

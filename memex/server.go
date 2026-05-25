@@ -47,7 +47,8 @@ type updateMemoryArgs struct {
 }
 
 type forgetArgs struct {
-	ID string `json:"id" jsonschema:"Memory ID to delete (from remember or recall output)"`
+	ID     string `json:"id" jsonschema:"Memory ID to delete (from remember or recall output)"`
+	UserID string `json:"user_id,omitempty" jsonschema:"Scope delete to user_id (defaults to MEMEX_USER_ID)"`
 }
 
 type deleteMemoriesArgs struct {
@@ -61,7 +62,8 @@ type deleteAllMemoriesArgs struct {
 }
 
 type getArgs struct {
-	ID string `json:"id" jsonschema:"Memory ID to fetch (required)"`
+	ID     string `json:"id" jsonschema:"Memory ID to fetch (required)"`
+	UserID string `json:"user_id,omitempty" jsonschema:"Scope fetch to user_id (defaults to MEMEX_USER_ID)"`
 }
 
 type memoryHistoryArgs struct {
@@ -176,7 +178,7 @@ func (h *toolHandlers) updateMemory(ctx context.Context, _ *mcp.CallToolRequest,
 }
 
 func (h *toolHandlers) forget(ctx context.Context, _ *mcp.CallToolRequest, args forgetArgs) (*mcp.CallToolResult, any, error) {
-	if err := h.store.Forget(ctx, args.ID); err != nil {
+	if err := h.store.Forget(ctx, args.ID, args.UserID); err != nil {
 		return nil, nil, err
 	}
 	return tinymcp.TextResult(fmt.Sprintf("Forgot memory %s.", args.ID)), nil, nil
@@ -202,7 +204,7 @@ func (h *toolHandlers) deleteAllMemories(ctx context.Context, _ *mcp.CallToolReq
 }
 
 func (h *toolHandlers) getMemory(ctx context.Context, _ *mcp.CallToolRequest, args getArgs) (*mcp.CallToolResult, any, error) {
-	mem, err := h.store.Get(ctx, args.ID)
+	mem, err := h.store.Get(ctx, args.ID, args.UserID)
 	if err != nil {
 		return nil, nil, err
 	}

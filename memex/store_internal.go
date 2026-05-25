@@ -19,6 +19,16 @@ func trimRequired(v, field string) (string, error) {
 	return v, nil
 }
 
+func validateContent(content string) error {
+	if content == "" {
+		return errors.New("content is required")
+	}
+	if len(content) > maxMemoryContentLen {
+		return fmt.Errorf("content exceeds maximum length of %d bytes", maxMemoryContentLen)
+	}
+	return nil
+}
+
 func contentHash(userID, content string) string {
 	sum := sha256.Sum256([]byte(userID + "\x00" + strings.TrimSpace(content)))
 	return hex.EncodeToString(sum[:])
