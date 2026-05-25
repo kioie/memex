@@ -20,6 +20,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 
 FROM alpine:3.21
 
+LABEL io.modelcontextprotocol.server.name="io.github.kioie/memex"
+
 RUN apk add --no-cache ca-certificates && \
     mkdir -p /data && chown nobody:nobody /data
 
