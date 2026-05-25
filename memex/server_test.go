@@ -14,7 +14,7 @@ func TestRecallHandlerLimitCap(t *testing.T) {
 	h := &toolHandlers{store: store}
 
 	t.Run("default limit 10", func(t *testing.T) {
-		res, _, err := h.recall(ctx, nil, recallArgs{})
+		res, _, err := h.listMemories(ctx, nil, listMemoriesArgs{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -24,7 +24,7 @@ func TestRecallHandlerLimitCap(t *testing.T) {
 	})
 
 	t.Run("explicit 30", func(t *testing.T) {
-		res, _, err := h.recall(ctx, nil, recallArgs{Limit: 30})
+		res, _, err := h.listMemories(ctx, nil, listMemoriesArgs{Limit: 30})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -34,12 +34,12 @@ func TestRecallHandlerLimitCap(t *testing.T) {
 	})
 
 	t.Run("capped at 50", func(t *testing.T) {
-		res, _, err := h.recall(ctx, nil, recallArgs{Limit: 999})
+		res, _, err := h.listMemories(ctx, nil, listMemoriesArgs{Limit: 999})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if countJSONMemories(t, textFromResult(res)) != 50 {
-			t.Fatalf("expected MCP recall cap of 50")
+			t.Fatalf("expected MCP list cap of 50")
 		}
 	})
 }

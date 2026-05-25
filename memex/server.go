@@ -11,7 +11,7 @@ import (
 )
 
 const serverName = "memex"
-const serverVersion = "0.3.2"
+const serverVersion = "0.4.0"
 
 type rememberArgs struct {
 	Content  string         `json:"content" jsonschema:"Fact, preference, decision, or note to store (required)"`
@@ -25,7 +25,7 @@ type rememberArgs struct {
 }
 
 type recallArgs struct {
-	Query    string            `json:"query,omitempty" jsonschema:"Search text; leave empty to list recent memories"`
+	Query    string            `json:"query" jsonschema:"Search text (required); use list_memories to browse without keywords"`
 	Limit    int               `json:"limit,omitempty" jsonschema:"Maximum results (default 10, max 50)"`
 	Offset   int               `json:"offset,omitempty" jsonschema:"Skip first N results for pagination"`
 	Tags     []string          `json:"tags,omitempty" jsonschema:"Filter by tags (any match)"`
@@ -35,6 +35,19 @@ type recallArgs struct {
 	AgentID  string            `json:"agent_id,omitempty" jsonschema:"Filter by agent_id (defaults to MEMEX_AGENT_ID when set)"`
 	RunID    string            `json:"run_id,omitempty" jsonschema:"Filter by run_id (defaults to MEMEX_RUN_ID when set)"`
 	Metadata        map[string]string `json:"metadata,omitempty" jsonschema:"Exact metadata key/value filters (e.g. {\"source\":\"agent\"})"`
+	IncludeInactive bool              `json:"include_inactive,omitempty" jsonschema:"Include superseded or deleted memories (default false)"`
+}
+
+type retrieveContextArgs struct {
+	Query           string            `json:"query" jsonschema:"Search text (required)"`
+	MaxTokens       int               `json:"max_tokens,omitempty" jsonschema:"Token budget for packed JSON output (default 4096, max 32768)"`
+	Tags            []string          `json:"tags,omitempty" jsonschema:"Filter by tags (any match)"`
+	Type            string            `json:"type,omitempty" jsonschema:"Filter by memory type"`
+	Source          string            `json:"source,omitempty" jsonschema:"Filter by source: user, agent, or system"`
+	UserID          string            `json:"user_id,omitempty" jsonschema:"Scope search to user_id (defaults to MEMEX_USER_ID)"`
+	AgentID         string            `json:"agent_id,omitempty" jsonschema:"Filter by agent_id (defaults to MEMEX_AGENT_ID when set)"`
+	RunID           string            `json:"run_id,omitempty" jsonschema:"Filter by run_id (defaults to MEMEX_RUN_ID when set)"`
+	Metadata        map[string]string `json:"metadata,omitempty" jsonschema:"Exact metadata key/value filters"`
 	IncludeInactive bool              `json:"include_inactive,omitempty" jsonschema:"Include superseded or deleted memories (default false)"`
 }
 
@@ -98,13 +111,18 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 	h := &toolHandlers{store: store}
 
 	if err := tinymcp.RegisterTool(s, "remember",
-		"Store durable agent memory (preferences, decisions, facts, commitments). Set source=agent for assistant-originated facts; commitment/recommendation/action_taken types default to agent. Duplicate content for the same user_id returns the existing active memory. Use recall/search to read; use update_memory to supersede a fact; use forget/delete_memories to soft-delete.",
+		"Store durable agent memory (preferences, decisions, facts, commitments). Set source=agent for assistant-originated facts; commitment/recommendation/action_taken types default to agent. Duplicate content for the same user_id returns the existing active memory. Use recall or retrieve_context to read; use update_memory to supersede a fact; use forget/delete_memories to soft-delete.",
 		h.remember); err != nil {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "recall",
-		"Search or list active stored memories (FTS5 keyword + BM25). Superseded and deleted rows are excluded by default. Supports tags, type, source, user_id filters and pagination. Do not use for live external data — use MCP tools for that; use remember to save new facts.",
+		"Search active stored memories by keyword (FTS5 + BM25). Query is required — use list_memories to browse recent rows without keywords. Superseded and deleted rows are excluded by default. Supports tags, type, source, user_id filters and pagination. For bounded context size use retrieve_context instead.",
 		h.recall); err != nil {
+		return nil, err
+	}
+	if err := tinymcp.RegisterTool(s, "retrieve_context",
+		"Search ranked memories and pack JSON output within max_tokens (greedy, highest BM25 first). Requires query. Prefer over recall when the agent must stay within a token budget. Sibling: list_memories for browsing without a query.",
+		h.retrieveContext); err != nil {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "list_memories",
@@ -165,6 +183,9 @@ func (h *toolHandlers) remember(ctx context.Context, _ *mcp.CallToolRequest, arg
 }
 
 func (h *toolHandlers) recall(ctx context.Context, _ *mcp.CallToolRequest, args recallArgs) (*mcp.CallToolResult, any, error) {
+	if strings.TrimSpace(args.Query) == "" {
+		return nil, nil, fmt.Errorf("recall requires a non-empty query; use list_memories to browse recent memories")
+	}
 	limit, offset := clampLimitOffset(args.Limit, args.Offset)
 	memories, err := h.store.Search(ctx, args.Query, MemoryFilter{
 		UserID:          args.UserID,
@@ -182,6 +203,27 @@ func (h *toolHandlers) recall(ctx context.Context, _ *mcp.CallToolRequest, args 
 		return nil, nil, err
 	}
 	return tinymcp.TextResult(formatRecall(memories, args.Query)), nil, nil
+}
+
+func (h *toolHandlers) retrieveContext(ctx context.Context, _ *mcp.CallToolRequest, args retrieveContextArgs) (*mcp.CallToolResult, any, error) {
+	result, err := h.store.RetrieveContext(ctx, args.Query, MemoryFilter{
+		UserID:          args.UserID,
+		AgentID:         args.AgentID,
+		RunID:           args.RunID,
+		Tags:            args.Tags,
+		Type:            args.Type,
+		Source:          args.Source,
+		Metadata:        args.Metadata,
+		IncludeInactive: args.IncludeInactive,
+	}, args.MaxTokens)
+	if err != nil {
+		return nil, nil, err
+	}
+	payload, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return nil, nil, err
+	}
+	return tinymcp.TextResult(string(payload)), nil, nil
 }
 
 func (h *toolHandlers) listMemories(ctx context.Context, _ *mcp.CallToolRequest, args listMemoriesArgs) (*mcp.CallToolResult, any, error) {
