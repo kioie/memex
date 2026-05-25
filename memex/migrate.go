@@ -25,6 +25,25 @@ const (
 	colTextNotNullDefaultUser = "TEXT NOT NULL DEFAULT 'default'"
 )
 
+const entitiesSchema = `
+CREATE TABLE IF NOT EXISTS memory_entities (
+	memory_id TEXT NOT NULL,
+	user_id TEXT NOT NULL,
+	entity TEXT NOT NULL,
+	PRIMARY KEY (memory_id, entity)
+);
+CREATE INDEX IF NOT EXISTS idx_memory_entities_user_entity ON memory_entities(user_id, entity);
+`
+
+const embeddingsSchema = `
+CREATE TABLE IF NOT EXISTS memory_embeddings (
+	memory_id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	embedding BLOB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_memory_embeddings_user ON memory_embeddings(user_id);
+`
+
 func migrateStore(db *sql.DB) error {
 	columns := map[string]string{
 		"content_hash":  colTextNotNullEmpty,
@@ -68,6 +87,21 @@ func migrateStore(db *sql.DB) error {
 	}
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_user_source ON memories(user_id, source)`); err != nil {
 		return fmt.Errorf("create source index: %w", err)
+	}
+	if _, err := db.Exec(entitiesSchema); err != nil {
+		return fmt.Errorf("migrate entities: %w", err)
+	}
+	if _, err := db.Exec(embeddingsSchema); err != nil {
+		return fmt.Errorf("migrate embeddings: %w", err)
+	}
+	var entityCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM memory_entities`).Scan(&entityCount); err != nil {
+		return fmt.Errorf("count entities: %w", err)
+	}
+	if entityCount == 0 {
+		if err := backfillMemoryEntities(db); err != nil {
+			return fmt.Errorf("backfill entities: %w", err)
+		}
 	}
 	return nil
 }

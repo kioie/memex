@@ -11,7 +11,7 @@ import (
 )
 
 const serverName = "memex"
-const serverVersion = "0.4.0"
+const serverVersion = "0.5.0"
 
 type rememberArgs struct {
 	Content  string         `json:"content" jsonschema:"Fact, preference, decision, or note to store (required)"`
@@ -116,12 +116,12 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "recall",
-		"Search active stored memories by keyword (FTS5 + BM25). Query is required — use list_memories to browse recent rows without keywords. Superseded and deleted rows are excluded by default. Supports tags, type, source, user_id filters and pagination. For bounded context size use retrieve_context instead.",
+		"Search active stored memories by keyword (FTS5 + BM25) fused with entity boost and optional hybrid vectors (MEMEX_HYBRID=1). Query is required — use list_memories to browse recent rows without keywords. Superseded and deleted rows are excluded by default. For bounded context size use retrieve_context instead.",
 		h.recall); err != nil {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "retrieve_context",
-		"Search ranked memories and pack JSON output within max_tokens (greedy, highest BM25 first). Requires query. Prefer over recall when the agent must stay within a token budget. Sibling: list_memories for browsing without a query.",
+		"Search ranked memories and pack JSON output within max_tokens (greedy, highest fused rank first). Fuses keyword, entity, and optional hybrid vector signals via reciprocal rank fusion. Requires query. Set MEMEX_HYBRID=1 to enable local vector retrieval.",
 		h.retrieveContext); err != nil {
 		return nil, err
 	}

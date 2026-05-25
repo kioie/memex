@@ -233,6 +233,9 @@ func (s *Store) Remember(_ context.Context, content string, tags []string, memor
 	if err := s.recordEvent(mem.ID, userID, eventAdd, "", mem.Content); err != nil {
 		return nil, fmt.Errorf("record event: %w", err)
 	}
+	if err := s.indexMemoryRetrievalLocked(mem, tags); err != nil {
+		return nil, fmt.Errorf("index retrieval signals: %w", err)
+	}
 	return mem, nil
 }
 
@@ -254,17 +257,7 @@ func (s *Store) Search(_ context.Context, query string, filter MemoryFilter) ([]
 	if query == "" {
 		return s.listRecentFiltered(limit, filter)
 	}
-	ftsQuery := buildFTSQuery(query)
-	sqlText, args, err := searchMemoriesSQL(ftsQuery, filter, limit, max(0, filter.Offset))
-	if err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(sqlText, args...)
-	if err != nil {
-		return nil, fmt.Errorf("search memories: %w", err)
-	}
-	defer rows.Close()
-	return scanMemoriesSearch(rows)
+	return s.hybridSearch(query, filter, limit, max(0, filter.Offset))
 }
 
 func (s *Store) listRecentFiltered(limit int, filter MemoryFilter) ([]Memory, error) {

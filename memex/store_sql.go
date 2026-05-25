@@ -39,6 +39,26 @@ const (
 	sqlInsertMemory          = `
 		INSERT INTO memories (id, content, tags, memory_type, created_at, updated_at, content_hash, metadata, user_id, agent_id, run_id, supersedes_id, valid_to, source)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	sqlEntitySearchActive = `
+		SELECT m.id, m.content, m.tags, m.memory_type, m.created_at, m.updated_at,
+		       COUNT(e.entity) AS score, '' AS highlights,
+		       m.metadata, m.user_id, m.agent_id, m.run_id, m.supersedes_id, m.valid_to, m.source
+		FROM memory_entities e
+		JOIN memories m ON m.id = e.memory_id
+		WHERE e.user_id = ? AND m.user_id = ? AND e.entity IN (SELECT value FROM json_each(?)) AND m.valid_to = ?
+		GROUP BY m.id
+		ORDER BY score DESC
+		LIMIT ?`
+	sqlEntitySearchAll = `
+		SELECT m.id, m.content, m.tags, m.memory_type, m.created_at, m.updated_at,
+		       COUNT(e.entity) AS score, '' AS highlights,
+		       m.metadata, m.user_id, m.agent_id, m.run_id, m.supersedes_id, m.valid_to, m.source
+		FROM memory_entities e
+		JOIN memories m ON m.id = e.memory_id
+		WHERE e.user_id = ? AND m.user_id = ? AND e.entity IN (SELECT value FROM json_each(?))
+		GROUP BY m.id
+		ORDER BY score DESC
+		LIMIT ?`
 )
 
 func listMemoriesSQL(filter MemoryFilter, limit, offset int) (string, []any, error) {
