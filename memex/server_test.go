@@ -77,8 +77,10 @@ func TestExtendedToolHandlers(t *testing.T) {
 	if !strings.Contains(textFromResult(updateRes), "Prefers light mode") {
 		t.Fatalf("update_memory = %q", textFromResult(updateRes))
 	}
+	oldID := id
+	id = extractRememberedID(t, textFromResult(updateRes))
 
-	histRes, _, err := h.memoryHistory(ctx, nil, memoryHistoryArgs{ID: id, UserID: "alice"})
+	histRes, _, err := h.memoryHistory(ctx, nil, memoryHistoryArgs{ID: oldID, UserID: "alice"})
 	if err != nil {
 		t.Fatal(err)
 	}

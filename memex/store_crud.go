@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func (s *Store) getByHashLocked(userID, hash string) (*Memory, error) {
-	row := s.db.QueryRow(`
-		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id, agent_id, run_id
-		FROM memories WHERE user_id = ? AND content_hash = ? LIMIT 1`, userID, hash)
+	row := s.db.QueryRow(sqlSelectMemoryByHash, userID, hash, "")
 	mem, err := scanMemoryFull(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -21,7 +21,7 @@ func (s *Store) getByHashLocked(userID, hash string) (*Memory, error) {
 	return mem, err
 }
 
-// UpdateInput carries fields for Update.
+// UpdateInput carries fields for Update (supersede).
 type UpdateInput struct {
 	Content  string
 	Tags     []string
@@ -31,7 +31,7 @@ type UpdateInput struct {
 	AgentID  string
 }
 
-// Update overwrites memory content scoped to userID (defaults to MEMEX_USER_ID).
+// Update supersedes an active memory: marks the old row inactive and appends a new row.
 func (s *Store) Update(_ context.Context, id string, in UpdateInput) (*Memory, error) {
 	if s == nil {
 		return nil, errStoreClosed
@@ -44,17 +44,30 @@ func (s *Store) Update(_ context.Context, id string, in UpdateInput) (*Memory, e
 	if err := validateContent(content); err != nil {
 		return nil, err
 	}
+	in.Content = content
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.db == nil {
 		return nil, errStoreClosed
 	}
+	return s.supersedeLocked(id, in)
+}
 
-	old, err := s.getLockedForUser(id, ResolveUserIDArg(in.UserID), in.AgentID)
-	if err != nil {
-		return nil, err
-	}
+type supersedePayload struct {
+	scopeUserID string
+	content     string
+	memoryType  string
+	tags        []string
+	metadata    map[string]any
+	tagsJSON    string
+	metaJSON    string
+	hash        string
+	now         time.Time
+	nowStr      string
+}
+
+func prepareSupersedePayload(old *Memory, in UpdateInput) (*supersedePayload, error) {
 	scopeUserID := old.UserID
 	if scopeUserID == "" {
 		scopeUserID = defaultUserID
@@ -71,8 +84,6 @@ func (s *Store) Update(_ context.Context, id string, in UpdateInput) (*Memory, e
 	if metadata == nil {
 		metadata = old.Metadata
 	}
-	now := time.Now().UTC()
-	hash := contentHash(scopeUserID, content)
 	tagsJSON, err := json.Marshal(normalizeTags(tags))
 	if err != nil {
 		return nil, err
@@ -81,49 +92,95 @@ func (s *Store) Update(_ context.Context, id string, in UpdateInput) (*Memory, e
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now().UTC()
+	return &supersedePayload{
+		scopeUserID: scopeUserID,
+		content:     in.Content,
+		memoryType:  memoryType,
+		tags:        tags,
+		metadata:    metadata,
+		tagsJSON:    string(tagsJSON),
+		metaJSON:    metaJSON,
+		hash:        contentHash(scopeUserID, in.Content),
+		now:         now,
+		nowStr:      now.Format(time.RFC3339Nano),
+	}, nil
+}
 
-	query := `
-		UPDATE memories SET content = ?, tags = ?, memory_type = ?, updated_at = ?, content_hash = ?, metadata = ?
-		WHERE id = ? AND user_id = ?`
-	args := []any{content, string(tagsJSON), memoryType, now.Format(time.RFC3339Nano), hash, metaJSON, id, scopeUserID}
-	if a := ResolveAgentIDArg(in.AgentID); a != "" {
-		query += clauseFilterAgentID
-		args = append(args, a)
+func (s *Store) closeSupersededRowLocked(id, scopeUserID, agentID, nowStr string, old *Memory) error {
+	if err := s.setInactiveLocked(id, scopeUserID, agentID, nowStr); err != nil {
+		return fmt.Errorf("supersede old memory: %w", err)
 	}
-	res, err := s.db.Exec(query, args...)
+	if err := s.purgeMemoryFromFTSLocked(id, old); err != nil {
+		return fmt.Errorf("purge fts: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) supersedeLocked(id string, in UpdateInput) (*Memory, error) {
+	old, err := s.getActiveLockedForUser(id, ResolveUserIDArg(in.UserID), in.AgentID)
 	if err != nil {
-		return nil, fmt.Errorf("update memory: %w", err)
+		return nil, err
 	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return nil, fmt.Errorf("memory not found: %s", id)
+	payload, err := prepareSupersedePayload(old, in)
+	if err != nil {
+		return nil, err
 	}
-	if err := s.recordHistory(id, scopeUserID, historyUpdate, old.Content, content); err != nil {
+	if err := s.closeSupersededRowLocked(id, payload.scopeUserID, in.AgentID, payload.nowStr, old); err != nil {
+		return nil, err
+	}
+
+	newID := uuid.NewString()
+	mem := &Memory{
+		ID:           newID,
+		Content:      payload.content,
+		Tags:         normalizeTags(payload.tags),
+		Type:         payload.memoryType,
+		UserID:       payload.scopeUserID,
+		AgentID:      old.AgentID,
+		RunID:        old.RunID,
+		SupersedesID: id,
+		Metadata:     payload.metadata,
+		CreatedAt:    payload.now,
+		UpdatedAt:    payload.now,
+	}
+	_, err = s.db.Exec(
+		`INSERT INTO memories (id, content, tags, memory_type, created_at, updated_at, content_hash, metadata, user_id, agent_id, run_id, supersedes_id, valid_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		mem.ID, mem.Content, payload.tagsJSON, mem.Type, payload.nowStr, payload.nowStr, payload.hash, payload.metaJSON, mem.UserID, mem.AgentID, mem.RunID, id, "",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("insert superseding memory: %w", err)
+	}
+	if err := s.recordHistory(id, payload.scopeUserID, historyUpdate, old.Content, payload.content); err != nil {
 		return nil, fmt.Errorf("record history: %w", err)
 	}
-	return &Memory{
-		ID:        id,
-		Content:   content,
-		Tags:      normalizeTags(tags),
-		Type:      memoryType,
-		UserID:    scopeUserID,
-		AgentID:   old.AgentID,
-		RunID:     old.RunID,
-		Metadata:  metadata,
-		CreatedAt: old.CreatedAt,
-		UpdatedAt: now,
-	}, nil
+	if err := s.recordEvent(id, payload.scopeUserID, eventSupersede, newID, payload.content); err != nil {
+		return nil, fmt.Errorf("record event: %w", err)
+	}
+	if err := s.recordEvent(newID, payload.scopeUserID, eventAdd, id, payload.content); err != nil {
+		return nil, fmt.Errorf("record event: %w", err)
+	}
+	return mem, nil
 }
 
 func (s *Store) getLocked(id string) (*Memory, error) {
 	return s.getLockedForUser(id, "", "")
 }
 
+func (s *Store) getActiveLockedForUser(id, userID, agentID string) (*Memory, error) {
+	mem, err := s.getLockedForUser(id, userID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	if mem.ValidTo != nil {
+		return nil, errMemoryNotFound(id)
+	}
+	return mem, nil
+}
+
 func (s *Store) getLockedForUser(id, userID, agentID string) (*Memory, error) {
 	if userID != "" {
-		query := `
-			SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id, agent_id, run_id
-			FROM memories WHERE id = ? AND user_id = ?`
+		query := sqlSelectMemoryByIDUser
 		args := []any{id, userID}
 		if a := ResolveAgentIDArg(agentID); a != "" {
 			query += clauseFilterAgentID
@@ -132,16 +189,14 @@ func (s *Store) getLockedForUser(id, userID, agentID string) (*Memory, error) {
 		row := s.db.QueryRow(query, args...)
 		mem, err := scanMemoryFull(row)
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("memory not found: %s", id)
+			return nil, errMemoryNotFound(id)
 		}
 		return mem, err
 	}
-	row := s.db.QueryRow(`
-		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id, agent_id, run_id
-		FROM memories WHERE id = ?`, id)
+	row := s.db.QueryRow(sqlSelectMemoryByID, id)
 	mem, err := scanMemoryFull(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("memory not found: %s", id)
+		return nil, errMemoryNotFound(id)
 	}
 	return mem, err
 }
@@ -170,7 +225,21 @@ func (s *Store) List(_ context.Context, filter MemoryFilter) ([]Memory, error) {
 	return scanMemoriesFull(rows)
 }
 
-// ForgetBatch deletes multiple memories by ID for the scoped user.
+func (s *Store) softDeleteLocked(id, userID, agentID string, old *Memory) error {
+	nowStr := time.Now().UTC().Format(time.RFC3339Nano)
+	if err := s.setInactiveLocked(id, userID, agentID, nowStr); err != nil {
+		return fmt.Errorf("soft delete memory: %w", err)
+	}
+	if err := s.purgeMemoryFromFTSLocked(id, old); err != nil {
+		return err
+	}
+	if err := s.recordHistory(id, userID, historyDelete, old.Content, ""); err != nil {
+		return err
+	}
+	return s.recordEvent(id, userID, eventDelete, "", old.Content)
+}
+
+// ForgetBatch soft-deletes multiple memories by ID for the scoped user.
 func (s *Store) ForgetBatch(_ context.Context, ids []string, userID string) (int, error) {
 	if s == nil {
 		return 0, errStoreClosed
@@ -199,19 +268,14 @@ func (s *Store) ForgetBatch(_ context.Context, ids []string, userID string) (int
 			}
 			return deleted, err
 		}
-		if old.UserID != userID {
+		if old.UserID != userID || old.ValidTo != nil {
 			continue
 		}
-		res, err := s.db.Exec(`DELETE FROM memories WHERE id = ? AND user_id = ?`, id, userID)
-		if err != nil {
-			return deleted, fmt.Errorf("delete memory: %w", err)
-		}
-		n, _ := res.RowsAffected()
-		if n == 0 {
-			continue
-		}
-		if err := s.recordHistory(id, userID, historyDelete, old.Content, ""); err != nil {
-			return deleted, fmt.Errorf("record history: %w", err)
+		if err := s.softDeleteLocked(id, userID, "", old); err != nil {
+			if strings.Contains(err.Error(), "memory not found") {
+				continue
+			}
+			return deleted, err
 		}
 		deleted++
 	}
@@ -221,7 +285,7 @@ func (s *Store) ForgetBatch(_ context.Context, ids []string, userID string) (int
 	return deleted, nil
 }
 
-// ForgetAll deletes all memories for a user_id scope.
+// ForgetAll soft-deletes all active memories for a user_id scope.
 func (s *Store) ForgetAll(_ context.Context, userID string) (int, error) {
 	if s == nil {
 		return 0, errStoreClosed
@@ -234,32 +298,30 @@ func (s *Store) ForgetAll(_ context.Context, userID string) (int, error) {
 		return 0, errStoreClosed
 	}
 
-	rows, err := s.db.Query(`SELECT id, content FROM memories WHERE user_id = ?`, userID)
+	rows, err := s.db.Query(sqlSelectActiveByUser, userID, "")
 	if err != nil {
 		return 0, err
 	}
-	type pair struct{ id, content string }
-	var pairs []pair
+	var olds []*Memory
 	for rows.Next() {
-		var p pair
-		if err := rows.Scan(&p.id, &p.content); err != nil {
+		mem, err := scanMemoryFullRow(rows)
+		if err != nil {
 			rows.Close()
 			return 0, err
 		}
-		pairs = append(pairs, p)
+		olds = append(olds, mem)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return 0, err
 	}
 
-	res, err := s.db.Exec(`DELETE FROM memories WHERE user_id = ?`, userID)
-	if err != nil {
-		return 0, fmt.Errorf("delete all: %w", err)
+	deleted := 0
+	for _, old := range olds {
+		if err := s.softDeleteLocked(old.ID, userID, "", old); err != nil {
+			return deleted, err
+		}
+		deleted++
 	}
-	n, _ := res.RowsAffected()
-	for _, p := range pairs {
-		_ = s.recordHistory(p.id, userID, historyDelete, p.content, "")
-	}
-	return int(n), nil
+	return deleted, nil
 }

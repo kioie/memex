@@ -14,8 +14,8 @@ func TestFilterClausesSQLUsesBoundParameters(t *testing.T) {
 	if !strings.Contains(sql, clauseFilterMemoryType) || !strings.Contains(sql, clauseFilterTag) {
 		t.Fatalf("filter SQL = %q", sql)
 	}
-	if len(args) != 4 {
-		t.Fatalf("args = %v, want 4 bound values", args)
+	if len(args) != 5 {
+		t.Fatalf("args = %v, want 5 bound values", args)
 	}
 	if args[1] != "note" {
 		t.Fatalf("type arg = %v", args[1])

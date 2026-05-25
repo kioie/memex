@@ -33,8 +33,19 @@ func TestGetForgetScopedByUserID(t *testing.T) {
 	if err := store.Forget(ctx, aliceMem.ID, "alice", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Get(ctx, aliceMem.ID, "alice", ""); err == nil {
-		t.Fatal("expected memory gone after scoped forget")
+	gotAfter, err := store.Get(ctx, aliceMem.ID, "alice", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotAfter.ValidTo == nil {
+		t.Fatal("expected soft-deleted memory")
+	}
+	active, err := store.List(ctx, MemoryFilter{UserID: "alice", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 0 {
+		t.Fatal("expected no active memories after scoped forget")
 	}
 }
 

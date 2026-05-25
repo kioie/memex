@@ -11,6 +11,12 @@ import (
 
 var errStoreClosed = errors.New("store is closed")
 
+const errMemoryNotFoundFmt = "memory not found: %s"
+
+func errMemoryNotFound(id string) error {
+	return fmt.Errorf(errMemoryNotFoundFmt, id)
+}
+
 func trimRequired(v, field string) (string, error) {
 	v = strings.TrimSpace(v)
 	if v == "" {
