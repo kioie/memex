@@ -11,7 +11,7 @@ import (
 )
 
 const serverName = "memex"
-const serverVersion = "0.3.0"
+const serverVersion = "0.3.1"
 
 type rememberArgs struct {
 	Content  string         `json:"content" jsonschema:"Fact, preference, decision, or note to store (required)"`
@@ -32,7 +32,8 @@ type recallArgs struct {
 	UserID   string            `json:"user_id,omitempty" jsonschema:"Scope search to user_id (defaults to MEMEX_USER_ID)"`
 	AgentID  string            `json:"agent_id,omitempty" jsonschema:"Filter by agent_id (defaults to MEMEX_AGENT_ID when set)"`
 	RunID    string            `json:"run_id,omitempty" jsonschema:"Filter by run_id (defaults to MEMEX_RUN_ID when set)"`
-	Metadata map[string]string `json:"metadata,omitempty" jsonschema:"Exact metadata key/value filters (e.g. {\"source\":\"agent\"})"`
+	Metadata        map[string]string `json:"metadata,omitempty" jsonschema:"Exact metadata key/value filters (e.g. {\"source\":\"agent\"})"`
+	IncludeInactive bool              `json:"include_inactive,omitempty" jsonschema:"Include superseded or deleted memories (default false)"`
 }
 
 type listMemoriesArgs struct {
@@ -43,7 +44,8 @@ type listMemoriesArgs struct {
 	UserID   string            `json:"user_id,omitempty" jsonschema:"Scope list to user_id"`
 	AgentID  string            `json:"agent_id,omitempty" jsonschema:"Filter by agent_id"`
 	RunID    string            `json:"run_id,omitempty" jsonschema:"Filter by run_id"`
-	Metadata map[string]string `json:"metadata,omitempty" jsonschema:"Exact metadata key/value filters"`
+	Metadata        map[string]string `json:"metadata,omitempty" jsonschema:"Exact metadata key/value filters"`
+	IncludeInactive bool              `json:"include_inactive,omitempty" jsonschema:"Include superseded or deleted memories (default false)"`
 }
 
 type updateMemoryArgs struct {
@@ -92,12 +94,12 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 	h := &toolHandlers{store: store}
 
 	if err := tinymcp.RegisterTool(s, "remember",
-		"Store durable agent memory (preferences, decisions, facts). Agent writes distilled facts directly (no server-side LLM infer). Duplicate content for the same user_id returns the existing memory. Use recall/search to read; use update_memory to revise; use forget/delete_memories to remove.",
+		"Store durable agent memory (preferences, decisions, facts). Agent writes distilled facts directly (no server-side LLM infer). Duplicate content for the same user_id returns the existing active memory. Use recall/search to read; use update_memory to supersede a fact; use forget/delete_memories to soft-delete.",
 		h.remember); err != nil {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "recall",
-		"Search or list stored memories (FTS5 keyword + BM25). Use before answering questions about past preferences or project context. Supports tags, type, user_id filters and pagination. Do not use for live external data — use MCP tools for that; use remember to save new facts.",
+		"Search or list active stored memories (FTS5 keyword + BM25). Superseded and deleted rows are excluded by default. Supports tags, type, user_id filters and pagination. Do not use for live external data — use MCP tools for that; use remember to save new facts.",
 		h.recall); err != nil {
 		return nil, err
 	}
@@ -107,7 +109,7 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "update_memory",
-		"Overwrite a memory's content by ID. Use when a fact changed; do not add a duplicate via remember. Sibling: get_memory to read first.",
+		"Supersede an active memory by ID: closes the old row and appends a new one (returns a new ID). Prefer this over remember when revising an existing fact. Sibling: get_memory to read first.",
 		h.updateMemory); err != nil {
 		return nil, err
 	}
@@ -117,7 +119,7 @@ func NewMCPServer(store *Store) (*tinymcp.TinyServer, error) {
 		return nil, err
 	}
 	if err := tinymcp.RegisterTool(s, "forget",
-		"Delete one memory by ID. Use delete_memories for batch; use delete_all_memories only with explicit user confirmation.",
+		"Soft-delete one active memory by ID (sets valid_to; row kept for audit). Use delete_memories for batch; use delete_all_memories only with explicit user confirmation.",
 		h.forget); err != nil {
 		return nil, err
 	}
@@ -160,14 +162,15 @@ func (h *toolHandlers) remember(ctx context.Context, _ *mcp.CallToolRequest, arg
 func (h *toolHandlers) recall(ctx context.Context, _ *mcp.CallToolRequest, args recallArgs) (*mcp.CallToolResult, any, error) {
 	limit, offset := clampLimitOffset(args.Limit, args.Offset)
 	memories, err := h.store.Search(ctx, args.Query, MemoryFilter{
-		UserID:   args.UserID,
-		AgentID:  args.AgentID,
-		RunID:    args.RunID,
-		Tags:     args.Tags,
-		Type:     args.Type,
-		Metadata: args.Metadata,
-		Limit:    limit,
-		Offset:   offset,
+		UserID:          args.UserID,
+		AgentID:         args.AgentID,
+		RunID:           args.RunID,
+		Tags:            args.Tags,
+		Type:            args.Type,
+		Metadata:        args.Metadata,
+		IncludeInactive: args.IncludeInactive,
+		Limit:           limit,
+		Offset:          offset,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -178,14 +181,15 @@ func (h *toolHandlers) recall(ctx context.Context, _ *mcp.CallToolRequest, args 
 func (h *toolHandlers) listMemories(ctx context.Context, _ *mcp.CallToolRequest, args listMemoriesArgs) (*mcp.CallToolResult, any, error) {
 	limit, offset := clampLimitOffset(args.Limit, args.Offset)
 	memories, err := h.store.List(ctx, MemoryFilter{
-		UserID:   args.UserID,
-		AgentID:  args.AgentID,
-		RunID:    args.RunID,
-		Tags:     args.Tags,
-		Type:     args.Type,
-		Metadata: args.Metadata,
-		Limit:    limit,
-		Offset:   offset,
+		UserID:          args.UserID,
+		AgentID:         args.AgentID,
+		RunID:           args.RunID,
+		Tags:            args.Tags,
+		Type:            args.Type,
+		Metadata:        args.Metadata,
+		IncludeInactive: args.IncludeInactive,
+		Limit:           limit,
+		Offset:          offset,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -267,6 +271,9 @@ func clampLimitOffset(limit, offset int) (int, int) {
 func formatRemembered(mem *Memory) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Remembered [%s] %s\n", mem.ID, mem.Content)
+	if mem.SupersedesID != "" {
+		fmt.Fprintf(&b, "supersedes: %s\n", mem.SupersedesID)
+	}
 	if mem.UserID != "" && mem.UserID != defaultUserID {
 		fmt.Fprintf(&b, "user_id: %s\n", mem.UserID)
 	}

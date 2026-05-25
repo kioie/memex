@@ -27,11 +27,13 @@ const (
 
 func migrateStore(db *sql.DB) error {
 	columns := map[string]string{
-		"content_hash": colTextNotNullEmpty,
-		"metadata":     colTextNotNullDefaultJSON,
-		"user_id":      colTextNotNullDefaultUser,
-		"agent_id":     colTextNotNullEmpty,
-		"run_id":       colTextNotNullEmpty,
+		"content_hash":  colTextNotNullEmpty,
+		"metadata":      colTextNotNullDefaultJSON,
+		"user_id":       colTextNotNullDefaultUser,
+		"agent_id":      colTextNotNullEmpty,
+		"run_id":        colTextNotNullEmpty,
+		"supersedes_id": colTextNotNullEmpty,
+		"valid_to":      colTextNotNullEmpty,
 	}
 	for name, def := range columns {
 		exists, err := columnExists(db, "memories", name)
@@ -53,6 +55,12 @@ func migrateStore(db *sql.DB) error {
 	}
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_user_agent ON memories(user_id, agent_id)`); err != nil {
 		return fmt.Errorf("create agent scope index: %w", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_active_user ON memories(user_id, valid_to)`); err != nil {
+		return fmt.Errorf("create active scope index: %w", err)
+	}
+	if _, err := db.Exec(eventsSchema); err != nil {
+		return fmt.Errorf("migrate events: %w", err)
 	}
 	return nil
 }

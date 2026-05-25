@@ -44,8 +44,19 @@ func TestStoreRememberRecallForget(t *testing.T) {
 	if err := store.Forget(ctx, mem.ID, "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Get(ctx, mem.ID, "", ""); err == nil {
-		t.Fatal("expected error after forget")
+	got, err = store.Get(ctx, mem.ID, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ValidTo == nil {
+		t.Fatal("expected valid_to after soft delete")
+	}
+	results, err = store.Recall(ctx, "table-driven", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected 0 active results after forget, got %d", len(results))
 	}
 }
 

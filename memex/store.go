@@ -59,30 +59,33 @@ END;
 
 // Memory is a single stored fact, preference, decision, or note.
 type Memory struct {
-	ID         string         `json:"id"`
-	Content    string         `json:"content"`
-	Tags       []string       `json:"tags,omitempty"`
-	Type       string         `json:"type"`
-	UserID     string         `json:"user_id,omitempty"`
-	AgentID    string         `json:"agent_id,omitempty"`
-	RunID      string         `json:"run_id,omitempty"`
-	Metadata   map[string]any `json:"metadata,omitempty"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	Score      float64        `json:"score,omitempty"`
-	Highlights string         `json:"highlights,omitempty"`
+	ID           string         `json:"id"`
+	Content      string         `json:"content"`
+	Tags         []string       `json:"tags,omitempty"`
+	Type         string         `json:"type"`
+	UserID       string         `json:"user_id,omitempty"`
+	AgentID      string         `json:"agent_id,omitempty"`
+	RunID        string         `json:"run_id,omitempty"`
+	SupersedesID string         `json:"supersedes_id,omitempty"`
+	ValidTo      *time.Time     `json:"valid_to,omitempty"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	Score        float64        `json:"score,omitempty"`
+	Highlights   string         `json:"highlights,omitempty"`
 }
 
 // MemoryFilter scopes list/search operations (local SQLite).
 type MemoryFilter struct {
-	UserID   string
-	AgentID  string
-	RunID    string
-	Tags     []string
-	Type     string
-	Metadata map[string]string
-	Limit    int
-	Offset   int
+	UserID          string
+	AgentID         string
+	RunID           string
+	Tags            []string
+	Type            string
+	Metadata        map[string]string
+	IncludeInactive bool
+	Limit           int
+	Offset          int
 }
 
 // Store persists agent memories in a local SQLite database with FTS5 search.
@@ -208,14 +211,17 @@ func (s *Store) Remember(_ context.Context, content string, tags []string, memor
 	}
 
 	_, err = s.db.Exec(
-		`INSERT INTO memories (id, content, tags, memory_type, created_at, updated_at, content_hash, metadata, user_id, agent_id, run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		mem.ID, mem.Content, string(tagsJSON), mem.Type, mem.CreatedAt.Format(time.RFC3339Nano), mem.UpdatedAt.Format(time.RFC3339Nano), hash, metaJSON, mem.UserID, mem.AgentID, mem.RunID,
+		`INSERT INTO memories (id, content, tags, memory_type, created_at, updated_at, content_hash, metadata, user_id, agent_id, run_id, supersedes_id, valid_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		mem.ID, mem.Content, string(tagsJSON), mem.Type, mem.CreatedAt.Format(time.RFC3339Nano), mem.UpdatedAt.Format(time.RFC3339Nano), hash, metaJSON, mem.UserID, mem.AgentID, mem.RunID, "", "",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert memory: %w", err)
 	}
 	if err := s.recordHistory(mem.ID, userID, historyAdd, "", mem.Content); err != nil {
 		return nil, fmt.Errorf("record history: %w", err)
+	}
+	if err := s.recordEvent(mem.ID, userID, eventAdd, "", mem.Content); err != nil {
+		return nil, fmt.Errorf("record event: %w", err)
 	}
 	return mem, nil
 }
@@ -277,7 +283,7 @@ func (s *Store) Get(_ context.Context, id, userID, agentID string) (*Memory, err
 	}
 	userID = ResolveUserIDArg(userID)
 	query := `
-		SELECT id, content, tags, memory_type, created_at, updated_at, metadata, user_id, agent_id, run_id
+		SELECT ` + sqlMemoryColumns + `
 		FROM memories WHERE id = ? AND user_id = ?`
 	args := []any{id, userID}
 	if a := ResolveAgentIDArg(agentID); a != "" {
@@ -292,7 +298,7 @@ func (s *Store) Get(_ context.Context, id, userID, agentID string) (*Memory, err
 	return mem, err
 }
 
-// Forget deletes a memory by ID scoped to userID (defaults to MEMEX_USER_ID).
+// Forget soft-deletes a memory by ID scoped to userID (defaults to MEMEX_USER_ID).
 func (s *Store) Forget(_ context.Context, id, userID, agentID string) error {
 	if s == nil {
 		return errStoreClosed
@@ -308,19 +314,20 @@ func (s *Store) Forget(_ context.Context, id, userID, agentID string) error {
 	if s.db == nil {
 		return errStoreClosed
 	}
-	old, err := s.getLockedForUser(id, userID, agentID)
+	old, err := s.getActiveLockedForUser(id, userID, agentID)
 	if err != nil {
 		return err
 	}
-	query := `DELETE FROM memories WHERE id = ? AND user_id = ?`
-	args := []any{id, userID}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	query := `UPDATE memories SET valid_to = ?, updated_at = ? WHERE id = ? AND user_id = ? AND valid_to = ?`
+	args := []any{now, now, id, userID, ""}
 	if a := ResolveAgentIDArg(agentID); a != "" {
 		query += clauseFilterAgentID
 		args = append(args, a)
 	}
 	res, err := s.db.Exec(query, args...)
 	if err != nil {
-		return fmt.Errorf("delete memory: %w", err)
+		return fmt.Errorf("soft delete memory: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
@@ -329,7 +336,18 @@ func (s *Store) Forget(_ context.Context, id, userID, agentID string) error {
 	if n == 0 {
 		return fmt.Errorf("memory not found: %s", id)
 	}
-	return s.recordHistory(id, userID, historyDelete, old.Content, "")
+	rowID, err := s.memoryRowIDLocked(id)
+	if err != nil {
+		return fmt.Errorf("lookup rowid: %w", err)
+	}
+	tagsJSON, _ := json.Marshal(old.Tags)
+	if err := s.purgeFTSLocked(rowID, old.Content, string(tagsJSON)); err != nil {
+		return fmt.Errorf("purge fts: %w", err)
+	}
+	if err := s.recordHistory(id, userID, historyDelete, old.Content, ""); err != nil {
+		return err
+	}
+	return s.recordEvent(id, userID, eventDelete, "", old.Content)
 }
 
 // Stats returns basic store statistics.
@@ -337,7 +355,7 @@ func (s *Store) Stats(_ context.Context) (count int, err error) {
 	if s == nil || s.db == nil {
 		return 0, errors.New("store is closed")
 	}
-	err = s.db.QueryRow(`SELECT COUNT(*) FROM memories`).Scan(&count)
+	err = s.db.QueryRow(`SELECT COUNT(*) FROM memories WHERE valid_to = ?`, "").Scan(&count)
 	return count, err
 }
 
@@ -367,14 +385,14 @@ func scanMemoriesFull(rows *sql.Rows) ([]Memory, error) {
 
 type memoryScanRow struct {
 	id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON string
-	userID, agentID, runID                                            string
+	userID, agentID, runID, supersedesID, validTo                      string
 	score                                                             float64
 	highlights                                                        string
 }
 
 func scanMemoryFull(row rowScanner) (*Memory, error) {
 	var r memoryScanRow
-	if err := row.Scan(&r.id, &r.content, &r.tagsJSON, &r.memoryType, &r.createdAt, &r.updatedAt, &r.metaJSON, &r.userID, &r.agentID, &r.runID); err != nil {
+	if err := row.Scan(&r.id, &r.content, &r.tagsJSON, &r.memoryType, &r.createdAt, &r.updatedAt, &r.metaJSON, &r.userID, &r.agentID, &r.runID, &r.supersedesID, &r.validTo); err != nil {
 		return nil, err
 	}
 	return decodeMemoryFull(r)
@@ -382,7 +400,7 @@ func scanMemoryFull(row rowScanner) (*Memory, error) {
 
 func scanMemoryFullRow(rows *sql.Rows) (*Memory, error) {
 	var r memoryScanRow
-	if err := rows.Scan(&r.id, &r.content, &r.tagsJSON, &r.memoryType, &r.createdAt, &r.updatedAt, &r.metaJSON, &r.userID, &r.agentID, &r.runID); err != nil {
+	if err := rows.Scan(&r.id, &r.content, &r.tagsJSON, &r.memoryType, &r.createdAt, &r.updatedAt, &r.metaJSON, &r.userID, &r.agentID, &r.runID, &r.supersedesID, &r.validTo); err != nil {
 		return nil, err
 	}
 	return decodeMemoryFull(r)
@@ -390,7 +408,7 @@ func scanMemoryFullRow(rows *sql.Rows) (*Memory, error) {
 
 func scanMemorySearchRow(rows *sql.Rows) (*Memory, error) {
 	var r memoryScanRow
-	if err := rows.Scan(&r.id, &r.content, &r.tagsJSON, &r.memoryType, &r.createdAt, &r.updatedAt, &r.score, &r.highlights, &r.metaJSON, &r.userID, &r.agentID, &r.runID); err != nil {
+	if err := rows.Scan(&r.id, &r.content, &r.tagsJSON, &r.memoryType, &r.createdAt, &r.updatedAt, &r.score, &r.highlights, &r.metaJSON, &r.userID, &r.agentID, &r.runID, &r.supersedesID, &r.validTo); err != nil {
 		return nil, err
 	}
 	return decodeMemoryFull(r)
@@ -409,6 +427,14 @@ func decodeMemoryFull(r memoryScanRow) (*Memory, error) {
 	mem.UserID = r.userID
 	mem.AgentID = r.agentID
 	mem.RunID = r.runID
+	mem.SupersedesID = r.supersedesID
+	if r.validTo != "" {
+		t, err := time.Parse(time.RFC3339Nano, r.validTo)
+		if err != nil {
+			return nil, fmt.Errorf("decode valid_to: %w", err)
+		}
+		mem.ValidTo = &t
+	}
 	if mem.UserID == "" {
 		mem.UserID = defaultUserID
 	}

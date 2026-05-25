@@ -44,6 +44,9 @@ func TestUpdateMemoryAndHistory(t *testing.T) {
 	if updated.Content != "v2" || updated.Type != "decision" {
 		t.Fatalf("update = %+v", updated)
 	}
+	if updated.SupersedesID != mem.ID {
+		t.Fatalf("supersedes_id = %q", updated.SupersedesID)
+	}
 	hist, err := store.History(ctx, mem.ID, "")
 	if err != nil {
 		t.Fatal(err)

@@ -4,12 +4,12 @@ Local-first memory with **accurate recall under a token budget**, **append-only 
 
 ## Current baseline
 
-| Area | Status (v0.3.0 / Phase 1) |
+| Area | Status (v0.3.1 / Phase 2) |
 |------|---------------------------|
 | Scoping | `user_id`, `agent_id`, `run_id`; scoped get/forget/update/history; 256 KiB cap |
-| Retrieval | FTS5 + BM25; filters: tags, type, agent/run, metadata equality |
-| Writes | Hash dedup; `update_memory` scoped by caller `user_id` |
-| History | Per-`memory_id` audit trail; scoped by `user_id` |
+| Retrieval | FTS5 + BM25; active-only by default; optional `include_inactive` |
+| Writes | Hash dedup; `update_memory` supersedes (new row); soft-delete via `valid_to` |
+| History | `memory_history` audit + `memory_events` append-only log |
 | Agent facts | `agent_id` / `run_id` stored; `MEMEX_AGENT_ID` / `MEMEX_RUN_ID` env defaults |
 | Metadata | Stored and filterable on `recall` / `list_memories` |
 
@@ -44,14 +44,16 @@ Read:   recall / retrieve_context → token budget → hybrid rank → JSON outp
 
 **Branch:** `kioie/v03-phase1-scoping`
 
-## Phase 2 — ADD-only facts + history
+## Phase 2 — ADD-only facts + history ✅ (v0.3.1)
 
 **Goal:** Append facts instead of reconciling with UPDATE/DELETE at write time.
 
-- `supersedes_id`, `valid_to` columns
-- Default recall excludes superseded rows
-- `memory_events` append-only log
-- Deprecate destructive updates as primary path
+- [x] `supersedes_id`, `valid_to` columns
+- [x] Default recall excludes superseded rows
+- [x] `memory_events` append-only log
+- [x] Deprecate destructive updates as primary path (`update_memory` supersedes; `forget` soft-deletes)
+
+**Branch:** `kioie/v03-phase2-add-only`
 
 ## Phase 3 — Agent facts first-class
 
