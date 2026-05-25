@@ -1,7 +1,8 @@
 # Smithery MCPB — stdio bundle via Docker (local install flow).
 # Requires image: ghcr.io/kioie/memex:0.6.0
+# Build:  npx mcp-bundler bundle --entry=smithery/entry.js --inspect
+# Pack:   npx @anthropic-ai/mcpb pack .smithery/mcpb server.mcpb
 # Publish: smithery auth login && smithery mcp publish server.mcpb -n kioie/memex
-# Build MCPB: see docs/SMITHERY.md
 name: memex
 startCommand:
   type: stdio

@@ -85,7 +85,7 @@ Open a **new chat**:
 
 **Try in browser (no Cursor):** `npx @modelcontextprotocol/inspector memex serve`
 
-**Remote / Smithery:** self-host [HTTP example](examples/http-deploy/) → [publish on Smithery](docs/SMITHERY.md) · Registry metadata in [`server.json`](server.json)
+**Smithery:** [kioie/memex](https://smithery.ai/servers/kioie/memex) (local Docker via MCPB — no hosting) · Registry metadata in [`server.json`](server.json)
 
 ---
 

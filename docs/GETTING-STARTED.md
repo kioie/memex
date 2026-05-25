@@ -135,9 +135,9 @@ npx @modelcontextprotocol/inspector memex serve
 
 ---
 
-## Remote try-it (Smithery / HTTP)
+## Smithery (no hosting)
 
-To let others connect without installing locally, host the [HTTP example](../examples/http-deploy/) and publish on [Smithery](../docs/SMITHERY.md). For private durable memory, stay on local stdio above.
+Install via [Smithery](https://smithery.ai/servers/kioie/memex) — runs Docker locally with a `memex-data` volume. No HTTP hosting required. See [docs/SMITHERY.md](../docs/SMITHERY.md).
 
 ---
 
