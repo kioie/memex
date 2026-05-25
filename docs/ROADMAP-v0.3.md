@@ -1,5 +1,7 @@
 # memex v0.3 roadmap
 
+> **New here?** Start with [Getting started](GETTING-STARTED.md) and [For AI agents](FOR-AGENTS.md). This doc is for contributors tracking release phases.
+
 Local-first memory with **accurate recall under a token budget**, **append-only facts**, **hybrid retrieval**, and **strong scoping** — without cloud LLMs or mandatory vector DBs.
 
 ## Current baseline

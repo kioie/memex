@@ -22,11 +22,8 @@ Guidance for AI coding agents working in this repository.
 ## Layout
 
 - `memex/` — importable library (`github.com/kioie/memex/memex`): SQLite store + MCP tool registration
-- `memex/version.go` — single `Version` constant (library, MCP server, CLI)
-- `memex/prompts.go` — MCP prompts for agent memory conventions
-- `cmd/memex/` — CLI (`memex serve`, `memex doctor` → tinymcp stdio)
+- `docs/` — user-facing guides ([Getting started](docs/GETTING-STARTED.md), [For AI agents](docs/FOR-AGENTS.md))
 - `examples/` — Cursor MCP configs and scoping cookbook
-- `integration/` — MCP stdio subprocess tests (`//go:build integration`)
 
 ## MCP layer
 
