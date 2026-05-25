@@ -282,9 +282,7 @@ func (s *Store) Get(_ context.Context, id, userID, agentID string) (*Memory, err
 		return nil, err
 	}
 	userID = ResolveUserIDArg(userID)
-	query := `
-		SELECT ` + sqlMemoryColumns + `
-		FROM memories WHERE id = ? AND user_id = ?`
+	query := sqlSelectMemoryByIDUser
 	args := []any{id, userID}
 	if a := ResolveAgentIDArg(agentID); a != "" {
 		query += clauseFilterAgentID
@@ -318,36 +316,7 @@ func (s *Store) Forget(_ context.Context, id, userID, agentID string) error {
 	if err != nil {
 		return err
 	}
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	query := `UPDATE memories SET valid_to = ?, updated_at = ? WHERE id = ? AND user_id = ? AND valid_to = ?`
-	args := []any{now, now, id, userID, ""}
-	if a := ResolveAgentIDArg(agentID); a != "" {
-		query += clauseFilterAgentID
-		args = append(args, a)
-	}
-	res, err := s.db.Exec(query, args...)
-	if err != nil {
-		return fmt.Errorf("soft delete memory: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return errMemoryNotFound(id)
-	}
-	rowID, err := s.memoryRowIDLocked(id)
-	if err != nil {
-		return fmt.Errorf("lookup rowid: %w", err)
-	}
-	tagsJSON, _ := json.Marshal(old.Tags)
-	if err := s.purgeFTSLocked(rowID, old.Content, string(tagsJSON)); err != nil {
-		return fmt.Errorf("purge fts: %w", err)
-	}
-	if err := s.recordHistory(id, userID, historyDelete, old.Content, ""); err != nil {
-		return err
-	}
-	return s.recordEvent(id, userID, eventDelete, "", old.Content)
+	return s.softDeleteLocked(id, userID, agentID, old)
 }
 
 // Stats returns basic store statistics.

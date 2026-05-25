@@ -11,6 +11,18 @@ const (
 	sqlSelectMemories = `
 		SELECT ` + sqlMemoryColumns + `
 		FROM memories WHERE user_id = ?`
+	sqlSelectMemoryByHash = `
+		SELECT ` + sqlMemoryColumns + `
+		FROM memories WHERE user_id = ? AND content_hash = ? AND valid_to = ? LIMIT 1`
+	sqlSelectMemoryByID = `
+		SELECT ` + sqlMemoryColumns + `
+		FROM memories WHERE id = ?`
+	sqlSelectMemoryByIDUser = `
+		SELECT ` + sqlMemoryColumns + `
+		FROM memories WHERE id = ? AND user_id = ?`
+	sqlSelectActiveByUser = `
+		SELECT ` + sqlMemoryColumns + `
+		FROM memories WHERE user_id = ? AND valid_to = ?`
 	sqlSelectMemoriesSearch = `
 		SELECT m.id, m.content, m.tags, m.memory_type, m.created_at, m.updated_at, bm25(memories_fts) AS score,
 		       snippet(memories_fts, 0, '[', ']', '…', 12) AS highlights, m.metadata, m.user_id, m.agent_id, m.run_id, m.supersedes_id, m.valid_to
