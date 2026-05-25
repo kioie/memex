@@ -1,6 +1,6 @@
 package memex
 
-// RememberOption configures Remember (mem0-style metadata and scoping).
+// RememberOption configures Remember (metadata and scoping).
 type RememberOption func(*rememberConfig)
 
 type rememberConfig struct {
@@ -41,7 +41,7 @@ func WithRunID(runID string) RememberOption {
 	}
 }
 
-// WithMetadata attaches arbitrary JSON metadata (mem0 metadata bag).
+// WithMetadata attaches arbitrary JSON metadata.
 func WithMetadata(metadata map[string]any) RememberOption {
 	return func(c *rememberConfig) {
 		c.Metadata = metadata

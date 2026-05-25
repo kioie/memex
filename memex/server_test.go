@@ -44,7 +44,7 @@ func TestRecallHandlerLimitCap(t *testing.T) {
 	})
 }
 
-func TestMem0ToolHandlers(t *testing.T) {
+func TestExtendedToolHandlers(t *testing.T) {
 	store, ctx := openTestStore(t)
 	h := &toolHandlers{store: store}
 
