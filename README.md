@@ -1,8 +1,8 @@
 # memex
 
-**Memory extender for AI agents** — local-first, MCP-native, zero config.
+**Memory extender for AI agents** — local-first, MCP-native, zero config. **v0.5.0**
 
-Inspired by [Vannevar Bush's memex](https://en.wikipedia.org/wiki/Memex): a device for storing and linking knowledge. This project gives coding agents and LLM clients persistent memory across sessions — no API keys, no cloud, no vector DB setup.
+Inspired by [Vannevar Bush's memex](https://en.wikipedia.org/wiki/Memex): a device for storing and linking knowledge. This project gives coding agents and LLM clients durable memory across sessions — no API keys, no cloud, no vector DB setup.
 
 [![Unit Tests](https://github.com/kioie/memex/actions/workflows/unit.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/unit.yml)
 [![Integration Tests](https://github.com/kioie/memex/actions/workflows/integration.yml/badge.svg)](https://github.com/kioie/memex/actions/workflows/integration.yml)
@@ -41,36 +41,73 @@ Start a new chat later:
 
 > What are my testing preferences?
 
+For bounded context injection, use `retrieve_context` with a token budget instead of dumping full recall results.
+
+---
+
+## What you get (v0.5.0)
+
+| Capability | memex |
+|------------|-------|
+| **Hybrid retrieval** | FTS5 + BM25, entity boost, optional local vectors — fused with reciprocal rank fusion |
+| **Token budget** | `retrieve_context` packs ranked hits into a configurable `max_tokens` ceiling |
+| **Append-only facts** | `update_memory` supersedes (new row); soft-delete preserves audit trail |
+| **Agent facts** | First-class `source` (`user` / `agent` / `system`) and commitment-style types |
+| **Strong scoping** | `user_id`, `agent_id`, `run_id`, metadata filters — scoped CRUD and history |
+| **Fully local** | SQLite + FTS5 on disk; optional semantic signal via `MEMEX_HYBRID=1` — no cloud LLM or embeddings API |
+
+See [docs/ROADMAP-v0.3.md](docs/ROADMAP-v0.3.md) for release history and future work.
+
 ---
 
 ## MCP tools
 
 | Tool | Description |
 |------|-------------|
-| `remember` | Store a fact (dedups by user_id + content hash; optional metadata) |
-| `recall` | FTS search or list recent (filters: tags, type, user_id, pagination) |
-| `list_memories` | Filtered list without search query |
-| `update_memory` | Overwrite content by ID |
-| `get_memory` | Fetch one memory by exact ID |
-| `forget` | Delete one memory by ID |
-| `delete_memories` | Batch delete by IDs |
+| `remember` | Store a fact (hash dedup per user; optional tags, type, source, metadata, agent/run scope) |
+| `recall` | Keyword search (FTS5 + hybrid fusion); **query required** — use `list_memories` to browse |
+| `retrieve_context` | Ranked search packed within `max_tokens` (greedy; hybrid fusion before packing) |
+| `list_memories` | Filtered, paginated browse without a search query |
+| `update_memory` | Supersede an active memory (closes old row, returns new ID) |
+| `get_memory` | Fetch one memory by exact ID (scoped) |
+| `forget` | Soft-delete one memory (`valid_to` set; row kept for audit) |
+| `delete_memories` | Batch soft-delete by IDs |
 | `delete_all_memories` | Wipe user scope (requires `confirm=true`) |
-| `memory_history` | Audit trail for a memory |
+| `memory_history` | ADD / supersede / delete audit trail for a memory |
 
-Set `MEMEX_USER_ID` to scope memories (default `default`). `MEMEX_AGENT_ID` and `MEMEX_RUN_ID` optionally scope agent and session context.
+Memory types include `note`, `preference`, `decision`, `fact`, `procedure`, plus agent-oriented types: `commitment`, `recommendation`, `action_taken`.
 
-Memories live in `~/.memex/memex.db` (override with `MEMEX_DIR`).
+---
+
+## Environment
+
+| Variable | Purpose |
+|----------|---------|
+| `MEMEX_DIR` | Data directory (default `~/.memex`, database at `memex.db`) |
+| `MEMEX_USER_ID` | Default user scope (default `default`) |
+| `MEMEX_AGENT_ID` | Default agent scope when tool args omit `agent_id` |
+| `MEMEX_RUN_ID` | Default run/session tag when tool args omit `run_id` |
+| `MEMEX_HYBRID=1` | Enable local vector retrieval (deterministic embeddings, fused with keyword + entity signals) |
+| `MEMEX_VERBOSE=1` | Log database path to stderr (stdio reserved for MCP) |
 
 ---
 
 ## Why memex?
 
-| | memex | Hosted memory services |
+Most agent memory products assume a hosted stack: API keys, cloud embeddings, and network round-trips on every recall. memex inverts that — the MCP server *is* the product, and your machine owns the data.
+
+| | memex | Typical hosted memory |
 |---|---|---|
-| **Setup** | `go install`, one MCP config line | API keys, often Docker |
-| **Data** | Local SQLite on your machine | Vendor cloud |
-| **Network** | Zero for recall | Every search hits an API |
-| **MCP-native** | Built as an MCP server | SDK wrapper or separate API |
+| **Setup** | `go install`, one MCP config line | API keys, SDK, often Docker |
+| **Data residency** | Local SQLite on your machine | Vendor cloud |
+| **Recall path** | On-disk FTS + optional local vectors | Remote API + embedding service |
+| **Token discipline** | Built-in `retrieve_context` budget | Often returns unbounded JSON |
+| **Fact lifecycle** | Append-only supersession + soft-delete audit | In-place UPDATE/DELETE |
+| **Agent scoping** | `user_id` / `agent_id` / `run_id` / `source` | Varies; often single-tenant |
+| **MCP-native** | First-class tools with clear browse vs search split | Wrapper around REST or proprietary SDK |
+| **Dependencies** | Go + SQLite (stdlib-style local stack) | Vector DB, LLM pipeline, or both |
+
+memex deliberately does **not** run an LLM extraction pipeline or call cloud embedding APIs — agents write distilled facts directly, which keeps latency predictable and avoids vendor lock-in.
 
 ---
 
@@ -88,8 +125,6 @@ go run ./cmd/memex serve
 Layer split: `memex/store.go` owns SQLite + FTS; `memex/server.go` registers tools via `tinymcp.RegisterTool` and serves over stdio (`server.Start`). Roundtrip tests use `server.RawServer()` for in-memory transport; integration tests spawn the CLI subprocess.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full test tier breakdown and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
-
-Set `MEMEX_VERBOSE=1` to log the database path to stderr.
 
 ---
 
