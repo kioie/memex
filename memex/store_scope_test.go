@@ -54,7 +54,7 @@ func TestUpdateRejectsOversizedContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	tooLong := strings.Repeat("y", maxMemoryContentLen+1)
-	_, err = store.Update(ctx, mem.ID, tooLong, nil, "", nil, "", "")
+	_, err = store.Update(ctx, mem.ID, UpdateInput{Content: tooLong})
 	if err == nil || !strings.Contains(err.Error(), "maximum length") {
 		t.Fatalf("Update() error = %v", err)
 	}

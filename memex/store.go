@@ -73,7 +73,7 @@ type Memory struct {
 	Highlights string         `json:"highlights,omitempty"`
 }
 
-// MemoryFilter scopes list/search operations (mem0-style filters, local SQLite).
+// MemoryFilter scopes list/search operations (local SQLite).
 type MemoryFilter struct {
 	UserID   string
 	AgentID  string
@@ -155,7 +155,7 @@ func (s *Store) Close() error {
 }
 
 // Remember stores a new memory and returns it with an assigned ID.
-// Duplicate content for the same user_id returns the existing memory (mem0 hash dedup, storage-only).
+// Duplicate content for the same user_id returns the existing memory (content-hash dedup).
 func (s *Store) Remember(_ context.Context, content string, tags []string, memoryType string, opts ...RememberOption) (*Memory, error) {
 	if s == nil {
 		return nil, errStoreClosed
@@ -225,7 +225,7 @@ func (s *Store) Recall(ctx context.Context, query string, limit int) ([]Memory, 
 	return s.Search(ctx, query, MemoryFilter{Limit: limit})
 }
 
-// Search runs FTS5 recall with mem0-style filters (user_id, tags, type).
+// Search runs FTS5 recall with filters (user_id, tags, type, agent_id, run_id, metadata).
 func (s *Store) Search(_ context.Context, query string, filter MemoryFilter) ([]Memory, error) {
 	if s == nil || s.db == nil {
 		return nil, errStoreClosed
@@ -365,50 +365,50 @@ func scanMemoriesFull(rows *sql.Rows) ([]Memory, error) {
 	return out, rows.Err()
 }
 
+type memoryScanRow struct {
+	id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON string
+	userID, agentID, runID                                            string
+	score                                                             float64
+	highlights                                                        string
+}
+
 func scanMemoryFull(row rowScanner) (*Memory, error) {
-	var (
-		id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID, agentID, runID string
-	)
-	if err := row.Scan(&id, &content, &tagsJSON, &memoryType, &createdAt, &updatedAt, &metaJSON, &userID, &agentID, &runID); err != nil {
+	var r memoryScanRow
+	if err := row.Scan(&r.id, &r.content, &r.tagsJSON, &r.memoryType, &r.createdAt, &r.updatedAt, &r.metaJSON, &r.userID, &r.agentID, &r.runID); err != nil {
 		return nil, err
 	}
-	return decodeMemoryFull(id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID, agentID, runID, 0, "")
+	return decodeMemoryFull(r)
 }
 
 func scanMemoryFullRow(rows *sql.Rows) (*Memory, error) {
-	var (
-		id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID, agentID, runID string
-	)
-	if err := rows.Scan(&id, &content, &tagsJSON, &memoryType, &createdAt, &updatedAt, &metaJSON, &userID, &agentID, &runID); err != nil {
+	var r memoryScanRow
+	if err := rows.Scan(&r.id, &r.content, &r.tagsJSON, &r.memoryType, &r.createdAt, &r.updatedAt, &r.metaJSON, &r.userID, &r.agentID, &r.runID); err != nil {
 		return nil, err
 	}
-	return decodeMemoryFull(id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID, agentID, runID, 0, "")
+	return decodeMemoryFull(r)
 }
 
 func scanMemorySearchRow(rows *sql.Rows) (*Memory, error) {
-	var (
-		id, content, tagsJSON, memoryType, createdAt, updatedAt, highlights, metaJSON, userID, agentID, runID string
-		score                                                                                                  float64
-	)
-	if err := rows.Scan(&id, &content, &tagsJSON, &memoryType, &createdAt, &updatedAt, &score, &highlights, &metaJSON, &userID, &agentID, &runID); err != nil {
+	var r memoryScanRow
+	if err := rows.Scan(&r.id, &r.content, &r.tagsJSON, &r.memoryType, &r.createdAt, &r.updatedAt, &r.score, &r.highlights, &r.metaJSON, &r.userID, &r.agentID, &r.runID); err != nil {
 		return nil, err
 	}
-	return decodeMemoryFull(id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID, agentID, runID, score, highlights)
+	return decodeMemoryFull(r)
 }
 
-func decodeMemoryFull(id, content, tagsJSON, memoryType, createdAt, updatedAt, metaJSON, userID, agentID, runID string, score float64, highlights string) (*Memory, error) {
-	mem, err := decodeMemory(id, content, tagsJSON, memoryType, createdAt, updatedAt, score, highlights)
+func decodeMemoryFull(r memoryScanRow) (*Memory, error) {
+	mem, err := decodeMemory(r.id, r.content, r.tagsJSON, r.memoryType, r.createdAt, r.updatedAt, r.score, r.highlights)
 	if err != nil {
 		return nil, err
 	}
-	meta, err := decodeMetadata(metaJSON)
+	meta, err := decodeMetadata(r.metaJSON)
 	if err != nil {
 		return nil, err
 	}
 	mem.Metadata = meta
-	mem.UserID = userID
-	mem.AgentID = agentID
-	mem.RunID = runID
+	mem.UserID = r.userID
+	mem.AgentID = r.agentID
+	mem.RunID = r.runID
 	if mem.UserID == "" {
 		mem.UserID = defaultUserID
 	}

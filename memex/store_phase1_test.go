@@ -78,12 +78,12 @@ func TestUpdateScopedByUserID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = store.Update(ctx, mem.ID, "hijacked", nil, "", nil, "bob", "")
+	_, err = store.Update(ctx, mem.ID, UpdateInput{Content: "hijacked", UserID: "bob"})
 	if err == nil || !strings.Contains(err.Error(), "memory not found") {
 		t.Fatalf("cross-user update = %v", err)
 	}
 
-	updated, err := store.Update(ctx, mem.ID, "revised", nil, "", nil, "alice", "")
+	updated, err := store.Update(ctx, mem.ID, UpdateInput{Content: "revised", UserID: "alice"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestHistoryScopedByUserID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Update(ctx, mem.ID, "v2", nil, "", nil, "alice", ""); err != nil {
+	if _, err := store.Update(ctx, mem.ID, UpdateInput{Content: "v2", UserID: "alice"}); err != nil {
 		t.Fatal(err)
 	}
 
