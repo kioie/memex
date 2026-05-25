@@ -46,17 +46,30 @@ func (s *Store) Update(_ context.Context, id string, in UpdateInput) (*Memory, e
 	if err := validateContent(content); err != nil {
 		return nil, err
 	}
+	in.Content = content
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.db == nil {
 		return nil, errStoreClosed
 	}
+	return s.supersedeLocked(id, in)
+}
 
-	old, err := s.getActiveLockedForUser(id, ResolveUserIDArg(in.UserID), in.AgentID)
-	if err != nil {
-		return nil, err
-	}
+type supersedePayload struct {
+	scopeUserID string
+	content     string
+	memoryType  string
+	tags        []string
+	metadata    map[string]any
+	tagsJSON    string
+	metaJSON    string
+	hash        string
+	now         time.Time
+	nowStr      string
+}
+
+func prepareSupersedePayload(old *Memory, in UpdateInput) (*supersedePayload, error) {
 	scopeUserID := old.UserID
 	if scopeUserID == "" {
 		scopeUserID = defaultUserID
@@ -73,9 +86,6 @@ func (s *Store) Update(_ context.Context, id string, in UpdateInput) (*Memory, e
 	if metadata == nil {
 		metadata = old.Metadata
 	}
-	now := time.Now().UTC()
-	nowStr := now.Format(time.RFC3339Nano)
-	hash := contentHash(scopeUserID, content)
 	tagsJSON, err := json.Marshal(normalizeTags(tags))
 	if err != nil {
 		return nil, err
@@ -84,57 +94,87 @@ func (s *Store) Update(_ context.Context, id string, in UpdateInput) (*Memory, e
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now().UTC()
+	return &supersedePayload{
+		scopeUserID: scopeUserID,
+		content:     in.Content,
+		memoryType:  memoryType,
+		tags:        tags,
+		metadata:    metadata,
+		tagsJSON:    string(tagsJSON),
+		metaJSON:    metaJSON,
+		hash:        contentHash(scopeUserID, in.Content),
+		now:         now,
+		nowStr:      now.Format(time.RFC3339Nano),
+	}, nil
+}
 
-	closeQuery := `UPDATE memories SET valid_to = ?, updated_at = ? WHERE id = ? AND user_id = ? AND valid_to = ?`
-	closeArgs := []any{nowStr, nowStr, id, scopeUserID, ""}
-	if a := ResolveAgentIDArg(in.AgentID); a != "" {
-		closeQuery += clauseFilterAgentID
-		closeArgs = append(closeArgs, a)
+func (s *Store) closeSupersededRowLocked(id, scopeUserID, agentID, nowStr string, old *Memory) error {
+	query := `UPDATE memories SET valid_to = ?, updated_at = ? WHERE id = ? AND user_id = ? AND valid_to = ?`
+	args := []any{nowStr, nowStr, id, scopeUserID, ""}
+	if a := ResolveAgentIDArg(agentID); a != "" {
+		query += clauseFilterAgentID
+		args = append(args, a)
 	}
-	res, err := s.db.Exec(closeQuery, closeArgs...)
+	res, err := s.db.Exec(query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("supersede old memory: %w", err)
+		return fmt.Errorf("supersede old memory: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return nil, fmt.Errorf("memory not found: %s", id)
+		return fmt.Errorf("memory not found: %s", id)
 	}
 	oldTagsJSON, _ := json.Marshal(old.Tags)
 	rowID, err := s.memoryRowIDLocked(id)
 	if err != nil {
-		return nil, fmt.Errorf("lookup rowid: %w", err)
+		return fmt.Errorf("lookup rowid: %w", err)
 	}
 	if err := s.purgeFTSLocked(rowID, old.Content, string(oldTagsJSON)); err != nil {
-		return nil, fmt.Errorf("purge fts: %w", err)
+		return fmt.Errorf("purge fts: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) supersedeLocked(id string, in UpdateInput) (*Memory, error) {
+	old, err := s.getActiveLockedForUser(id, ResolveUserIDArg(in.UserID), in.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := prepareSupersedePayload(old, in)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.closeSupersededRowLocked(id, payload.scopeUserID, in.AgentID, payload.nowStr, old); err != nil {
+		return nil, err
 	}
 
 	newID := uuid.NewString()
 	mem := &Memory{
 		ID:           newID,
-		Content:      content,
-		Tags:         normalizeTags(tags),
-		Type:         memoryType,
-		UserID:       scopeUserID,
+		Content:      payload.content,
+		Tags:         normalizeTags(payload.tags),
+		Type:         payload.memoryType,
+		UserID:       payload.scopeUserID,
 		AgentID:      old.AgentID,
 		RunID:        old.RunID,
 		SupersedesID: id,
-		Metadata:     metadata,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		Metadata:     payload.metadata,
+		CreatedAt:    payload.now,
+		UpdatedAt:    payload.now,
 	}
 	_, err = s.db.Exec(
 		`INSERT INTO memories (id, content, tags, memory_type, created_at, updated_at, content_hash, metadata, user_id, agent_id, run_id, supersedes_id, valid_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		mem.ID, mem.Content, string(tagsJSON), mem.Type, nowStr, nowStr, hash, metaJSON, mem.UserID, mem.AgentID, mem.RunID, id, "",
+		mem.ID, mem.Content, payload.tagsJSON, mem.Type, payload.nowStr, payload.nowStr, payload.hash, payload.metaJSON, mem.UserID, mem.AgentID, mem.RunID, id, "",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert superseding memory: %w", err)
 	}
-	if err := s.recordHistory(id, scopeUserID, historyUpdate, old.Content, content); err != nil {
+	if err := s.recordHistory(id, payload.scopeUserID, historyUpdate, old.Content, payload.content); err != nil {
 		return nil, fmt.Errorf("record history: %w", err)
 	}
-	if err := s.recordEvent(id, scopeUserID, eventSupersede, newID, content); err != nil {
+	if err := s.recordEvent(id, payload.scopeUserID, eventSupersede, newID, payload.content); err != nil {
 		return nil, fmt.Errorf("record event: %w", err)
 	}
-	if err := s.recordEvent(newID, scopeUserID, eventAdd, id, content); err != nil {
+	if err := s.recordEvent(newID, payload.scopeUserID, eventAdd, id, payload.content); err != nil {
 		return nil, fmt.Errorf("record event: %w", err)
 	}
 	return mem, nil
