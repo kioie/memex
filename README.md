@@ -49,7 +49,7 @@ Start a new chat later:
 |------|-------------|
 | `remember` | Store a fact (dedups by user_id + content hash; optional metadata) |
 | `recall` | FTS search or list recent (filters: tags, type, user_id, pagination) |
-| `list_memories` | Filtered list without search query (mem0 `get_memories`) |
+| `list_memories` | Filtered list without search query |
 | `update_memory` | Overwrite content by ID |
 | `get_memory` | Fetch one memory by exact ID |
 | `forget` | Delete one memory by ID |
@@ -57,7 +57,7 @@ Start a new chat later:
 | `delete_all_memories` | Wipe user scope (requires `confirm=true`) |
 | `memory_history` | Audit trail for a memory |
 
-Set `MEMEX_USER_ID` to scope memories (mem0-style `user_id`, default `default`).
+Set `MEMEX_USER_ID` to scope memories (default `default`). `MEMEX_AGENT_ID` and `MEMEX_RUN_ID` optionally scope agent and session context.
 
 Memories live in `~/.memex/memex.db` (override with `MEMEX_DIR`).
 
@@ -65,7 +65,7 @@ Memories live in `~/.memex/memex.db` (override with `MEMEX_DIR`).
 
 ## Why memex?
 
-| | memex | mem0 / hosted memory |
+| | memex | Hosted memory services |
 |---|---|---|
 | **Setup** | `go install`, one MCP config line | API keys, often Docker |
 | **Data** | Local SQLite on your machine | Vendor cloud |

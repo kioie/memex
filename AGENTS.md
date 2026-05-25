@@ -55,7 +55,7 @@ Tool descriptions in `memex/server.go` follow MCP conventions: when to use, when
 ## Environment
 
 - `MEMEX_DIR` — data directory (default: `~/.memex`, database at `memex.db`)
-- `MEMEX_USER_ID` — default user scope for memories (mem0-style; default `default`)
+- `MEMEX_USER_ID` — default user scope for memories (default `default`)
 - `MEMEX_AGENT_ID` — default agent scope when tool args omit `agent_id`
 - `MEMEX_RUN_ID` — default run/session tag when tool args omit `run_id`
 - `MEMEX_VERBOSE=1` — log store path to stderr (stdio is reserved for MCP)

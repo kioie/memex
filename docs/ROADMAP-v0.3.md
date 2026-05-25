@@ -1,6 +1,6 @@
 # memex v0.3 roadmap
 
-Local-first memory inspired by [mem0 research](https://mem0.ai/research): **accurate recall under a token budget**, **append-only facts**, **hybrid retrieval**, and **strong scoping** — without cloud LLMs or mandatory vector DBs.
+Local-first memory with **accurate recall under a token budget**, **append-only facts**, **hybrid retrieval**, and **strong scoping** — without cloud LLMs or mandatory vector DBs.
 
 ## Current baseline
 
@@ -34,7 +34,7 @@ Read:   recall / retrieve_context → token budget → hybrid rank → JSON outp
 
 ## Phase 1 — User / agent scoping ✅ (v0.3.0)
 
-**Goal:** Close cross-tenant leaks; mem0-style `user_id` / `agent_id` / `run_id` + metadata partitions.
+**Goal:** Close cross-tenant leaks with `user_id` / `agent_id` / `run_id` + metadata partitions.
 
 - [x] `agent_id`, `run_id` columns + migration
 - [x] `MEMEX_AGENT_ID`, `MEMEX_RUN_ID` env defaults
@@ -55,7 +55,7 @@ Read:   recall / retrieve_context → token budget → hybrid rank → JSON outp
 
 ## Phase 3 — Agent facts first-class
 
-**Goal:** Reliable recall of agent commitments (LongMemEval assistant category).
+**Goal:** Reliable recall of agent commitments and assistant-originated facts.
 
 - `source`: `user` | `agent` | `system`
 - Types: `commitment`, `recommendation`, `action_taken`
@@ -63,7 +63,7 @@ Read:   recall / retrieve_context → token budget → hybrid rank → JSON outp
 
 ## Phase 4 — Token-efficient retrieval
 
-**Goal:** Mem0-style ~7k token target per retrieval call.
+**Goal:** Bounded token output per retrieval call (configurable budget).
 
 - New MCP tool: `retrieve_context` with `max_tokens`
 - Greedy pack ranked results
@@ -91,4 +91,4 @@ Read:   recall / retrieve_context → token budget → hybrid rank → JSON outp
 
 - LLM extraction pipeline
 - Cloud embeddings API
-- BEAM-scale 10M evaluation harness
+- Large-scale external evaluation harnesses
