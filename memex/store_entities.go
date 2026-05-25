@@ -1,6 +1,7 @@
 package memex
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -106,14 +107,6 @@ func mergeRRFScores(lists [][]string) map[string]float64 {
 	return scores
 }
 
-const sqlEntitySearchBase = `
-		SELECT m.id, m.content, m.tags, m.memory_type, m.created_at, m.updated_at,
-		       COUNT(e.entity) AS score, '' AS highlights,
-		       m.metadata, m.user_id, m.agent_id, m.run_id, m.supersedes_id, m.valid_to, m.source
-		FROM memory_entities e
-		JOIN memories m ON m.id = e.memory_id
-		WHERE e.user_id = ? AND m.user_id = ? AND e.entity IN (SELECT value FROM json_each(?))`
-
 func (s *Store) searchEntities(userID string, entities []string, filter MemoryFilter, limit int) ([]Memory, error) {
 	if len(entities) == 0 {
 		return nil, nil
@@ -125,20 +118,30 @@ func (s *Store) searchEntities(userID string, entities []string, filter MemoryFi
 	if err != nil {
 		return nil, fmt.Errorf("encode entity filter: %w", err)
 	}
-	args := []any{userID, userID, string(entitiesJSON)}
-	filterSQL, err := filterClausesSQL(filter, &args, "m.")
-	if err != nil {
-		return nil, err
+	fetchLimit := hybridCandidateLimit
+	var rows *sql.Rows
+	if filter.IncludeInactive {
+		rows, err = s.db.Query(sqlEntitySearchAll, userID, userID, string(entitiesJSON), fetchLimit)
+	} else {
+		rows, err = s.db.Query(sqlEntitySearchActive, userID, userID, string(entitiesJSON), "", fetchLimit)
 	}
-	query := sqlEntitySearchBase + filterSQL + `
-		GROUP BY m.id
-		ORDER BY score DESC
-		LIMIT ?`
-	args = append(args, limit)
-	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("entity search: %w", err)
 	}
 	defer rows.Close()
-	return scanMemoriesSearch(rows)
+	memories, err := scanMemoriesSearch(rows)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Memory, 0, limit)
+	for _, mem := range memories {
+		if !memoryMatchesFilter(&mem, filter) {
+			continue
+		}
+		out = append(out, mem)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
 }
