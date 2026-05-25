@@ -1,0 +1,43 @@
+# Smithery MCPB — stdio bundle via Docker (local install flow).
+# Requires image: ghcr.io/kioie/memex:0.6.0
+# Publish: smithery auth login && smithery mcp publish server.mcpb -n kioie/memex
+# Build MCPB: see docs/SMITHERY.md
+name: memex
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      MEMEX_USER_ID:
+        type: string
+        title: User scope
+        description: Memory namespace (default default)
+        default: default
+      MEMEX_HYBRID:
+        type: string
+        title: Hybrid retrieval
+        description: Set to "1" for local vector fusion
+        default: ""
+      MEMEX_VERBOSE:
+        type: string
+        title: Verbose logs
+        description: Set to "1" to log store path on stderr
+        default: ""
+  commandFunction: |-
+    (config) => ({
+      command: 'docker',
+      args: [
+        'run', '-i', '--rm',
+        '-v', 'memex-data:/data',
+        '-e', 'MEMEX_DIR=/data',
+        '-e', `MEMEX_USER_ID=${config.MEMEX_USER_ID || 'default'}`,
+        '-e', `MEMEX_HYBRID=${config.MEMEX_HYBRID || ''}`,
+        '-e', `MEMEX_VERBOSE=${config.MEMEX_VERBOSE || ''}`,
+        'ghcr.io/kioie/memex:0.6.0',
+        'serve'
+      ]
+    })
+  exampleConfig:
+    MEMEX_USER_ID: default
+    MEMEX_HYBRID: ""
+    MEMEX_VERBOSE: ""

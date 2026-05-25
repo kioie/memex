@@ -2,6 +2,17 @@
 
 All notable changes to memex are documented here. Version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `server.json` for MCP Registry publishing (`io.github.kioie/memex`)
+- `examples/http-deploy/` — streamable HTTP MCP for Smithery URL listing (Render, Fly, Docker)
+- Root `Dockerfile` (stdio) and `smithery.yaml` (MCPB Docker bundle)
+- `docs/DISCOVERY.md` and `docs/SMITHERY.md` — publishing and try-it guides
+- MCP Inspector and Smithery links in README and getting started
+- `make run-http` / `make test-http`
+
 ## [0.6.0] - 2026-05-24
 
 ### Added

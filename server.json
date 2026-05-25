@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.kioie/memex",
+  "title": "memex",
+  "description": "Long-term memory for AI coding agents — local MCP server for Cursor and Claude. Remember preferences and facts across chats; SQLite on your machine. Use stdio locally or self-host streamable HTTP for Smithery.",
+  "version": "0.6.0",
+  "websiteUrl": "https://github.com/kioie/memex",
+  "repository": {
+    "url": "https://github.com/kioie/memex",
+    "source": "github",
+    "subfolder": "cmd/memex"
+  },
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/kioie/memex:0.6.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MEMEX_DIR",
+          "description": "Data directory (default ~/.memex in native install; use /data in Docker)"
+        },
+        {
+          "name": "MEMEX_USER_ID",
+          "description": "Default user scope for memories"
+        },
+        {
+          "name": "MEMEX_HYBRID",
+          "description": "Set to 1 to enable local vector retrieval fusion"
+        }
+      ]
+    }
+  ]
+}

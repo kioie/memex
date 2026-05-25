@@ -7,6 +7,8 @@ Guidance for AI coding agents working in this repository.
 - **Test all (CI / quick)**: `make test` or `go test -race -short ./...`
 - **Test full scale**: `make test-full` or `go test -race ./memex ./cmd/memex`
 - **Test integration**: `make test-integration` (MCP stdio subprocess; `-tags=integration`)
+- **Test HTTP deploy**: `make test-http` (`examples/http-deploy`)
+- **Run HTTP locally**: `make run-http` (Smithery deploy template)
 - **Benchmarks**: `go test -bench=. -benchmem ./memex`
 - **Test package**: `go test -race -v ./memex`
 - **Test single**: `go test -run TestName ./memex -v`
@@ -24,7 +26,9 @@ Guidance for AI coding agents working in this repository.
 - `memex/` — importable library (`github.com/kioie/memex/memex`): SQLite store + MCP tool registration
 - `cmd/memex/` — CLI (`memex serve`, `memex doctor`)
 - `docs/` — user-facing guides ([Getting started](docs/GETTING-STARTED.md), [For AI agents](docs/FOR-AGENTS.md))
-- `examples/` — Cursor MCP configs and scoping cookbook
+- `examples/` — Cursor MCP configs, scoping cookbook, [HTTP deploy](examples/http-deploy/)
+- `server.json` — MCP Registry metadata
+- `docs/DISCOVERY.md`, `docs/SMITHERY.md` — publishing guides
 - `integration/` — MCP stdio subprocess tests (`//go:build integration`)
 
 ## MCP layer

@@ -124,6 +124,23 @@ Example with a personal user id:
 
 ---
 
+## Try in browser (MCP Inspector)
+
+No Cursor required — interactive UI for all tools and prompts:
+
+```bash
+go install github.com/kioie/memex/cmd/memex@latest
+npx @modelcontextprotocol/inspector memex serve
+```
+
+---
+
+## Remote try-it (Smithery / HTTP)
+
+To let others connect without installing locally, host the [HTTP example](../examples/http-deploy/) and publish on [Smithery](../docs/SMITHERY.md). For private durable memory, stay on local stdio above.
+
+---
+
 ## Next steps
 
 - [For AI agents](FOR-AGENTS.md) — rules for when agents should read/write memory

@@ -1,4 +1,4 @@
-.PHONY: all build release test test-full test-integration lint coverage coverage-check coverage-sonar coverage-sonar-check vulncheck clean install
+.PHONY: all build release test test-full test-integration test-http lint coverage coverage-check coverage-sonar coverage-sonar-check vulncheck clean install run-http
 
 BINARY_NAME=memex
 CMD=./cmd/memex
@@ -25,6 +25,12 @@ test-full:
 
 test-integration:
 	go test -tags=integration -race -timeout 5m ./integration/...
+
+test-http:
+	go test -race ./examples/http-deploy/...
+
+run-http:
+	MEMEX_DIR=$${MEMEX_DIR:-./data} go run ./examples/http-deploy
 
 lint:
 	golangci-lint run ./...

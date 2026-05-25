@@ -1,0 +1,134 @@
+{
+  "serverInfo": {
+    "name": "memex",
+    "version": "0.6.0"
+  },
+  "authentication": {
+    "required": false
+  },
+  "tools": [
+    {
+      "name": "remember",
+      "description": "Store durable agent memory (preferences, decisions, facts, commitments). Use recall or retrieve_context to read; update_memory to revise; forget to remove.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": { "type": "string", "description": "Fact or note to store (required)" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "type": { "type": "string" },
+          "source": { "type": "string" },
+          "user_id": { "type": "string" },
+          "agent_id": { "type": "string" },
+          "run_id": { "type": "string" },
+          "metadata": { "type": "object" }
+        },
+        "required": ["content"]
+      }
+    },
+    {
+      "name": "recall",
+      "description": "Search active memories by keyword. Query required. For bounded context use retrieve_context instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "limit": { "type": "integer" },
+          "user_id": { "type": "string" }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "retrieve_context",
+      "description": "Search and pack ranked memories within max_tokens. Prefer over recall when injecting context into the model.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "max_tokens": { "type": "integer" },
+          "user_id": { "type": "string" }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "list_memories",
+      "description": "Browse memories with filters without a search query.",
+      "inputSchema": { "type": "object", "properties": { "limit": { "type": "integer" }, "user_id": { "type": "string" } } }
+    },
+    {
+      "name": "update_memory",
+      "description": "Supersede an active memory by ID (returns new ID).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "content": { "type": "string" }
+        },
+        "required": ["id", "content"]
+      }
+    },
+    {
+      "name": "get_memory",
+      "description": "Fetch one memory by exact ID.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "id": { "type": "string" } },
+        "required": ["id"]
+      }
+    },
+    {
+      "name": "forget",
+      "description": "Soft-delete one memory by ID.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "id": { "type": "string" } },
+        "required": ["id"]
+      }
+    },
+    {
+      "name": "delete_memories",
+      "description": "Batch soft-delete by IDs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "ids": { "type": "array", "items": { "type": "string" } } },
+        "required": ["ids"]
+      }
+    },
+    {
+      "name": "delete_all_memories",
+      "description": "Wipe user scope. Requires confirm=true.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "confirm": { "type": "boolean" } },
+        "required": ["confirm"]
+      }
+    },
+    {
+      "name": "memory_history",
+      "description": "Audit trail for a memory ID.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "id": { "type": "string" } },
+        "required": ["id"]
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "name": "memory_guide",
+      "description": "When to use remember/recall/retrieve_context, types, scoping, and anti-patterns.",
+      "arguments": []
+    },
+    {
+      "name": "session_start",
+      "description": "Checklist for beginning a session: load preferences via retrieve_context.",
+      "arguments": [{ "name": "run_id", "description": "Optional session id", "required": false }]
+    },
+    {
+      "name": "remember_fact",
+      "description": "Distill draft text before calling remember.",
+      "arguments": [{ "name": "draft", "description": "Raw fact to store", "required": true }]
+    }
+  ]
+}

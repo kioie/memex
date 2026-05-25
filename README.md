@@ -83,6 +83,10 @@ Open a **new chat**:
 
 **Full walkthrough:** [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)
 
+**Try in browser (no Cursor):** `npx @modelcontextprotocol/inspector memex serve`
+
+**Remote / Smithery:** self-host [HTTP example](examples/http-deploy/) → [publish on Smithery](docs/SMITHERY.md) · Registry metadata in [`server.json`](server.json)
+
 ---
 
 ## How it works
