@@ -1,12 +1,12 @@
 module github.com/kioie/memex
 
-go 1.26.3
+go 1.26.4
 
 require (
 	github.com/google/uuid v1.6.0
 	github.com/kioie/tiny-go-mcp-server v1.2.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
-	modernc.org/sqlite v1.51.0
+	modernc.org/sqlite v1.52.0
 )
 
 require (
