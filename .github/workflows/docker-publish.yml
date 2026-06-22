@@ -20,7 +20,7 @@ jobs:
     name: ghcr.io/kioie/memex (stdio)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Resolve tag
         id: meta
         run: |
@@ -49,7 +49,7 @@ jobs:
     name: ghcr.io/kioie/memex-http
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Resolve tag
         id: meta
         run: |
